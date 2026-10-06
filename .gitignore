@@ -16,3 +16,4 @@ client_secret*.json
 
 # Zertifikate und Schlüssel (Wallet)
 /secrets/
+cost_minimal.csv

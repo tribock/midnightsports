@@ -80,7 +80,7 @@ Alternativ kann die Veranstaltung auch in den Turnhallen in Aadorf oder in Etten
 - Alle Benutzer melden sich über ihren Google Account an
 - Es gibt die Rollen Admin, Projektleiter und Teilnehmer
 - Standardmässig hat der Benutzer die Rolle Teilnehmer
-- Der erste Admin wird über die Umgebungsvariable `ADMIN_EMAIL` festgelegt
+- Die Admins werden über die Umgebungsvariable `ADMIN_EMAIL` festgelegt (komma-getrennt, z.B. `a@gmail.com,b@gmail.com`)
 - Google OAuth 2.0, Session über HttpOnly-Cookie, Sessions in der Datenbank
 
 ## Datenschutz
@@ -108,6 +108,7 @@ Sie verfügt über ein Frontend in TypeScript, ein Backend in Golang und kommuni
 
 - [Lokale Entwicklung](docs/lokale-entwicklung.md)
 - [Deployment auf Cloud Run](docs/deployment-cloud-run.md)
+- [Demo-Deployment mit PostgreSQL auf Cloud Run](docs/deployment-demo.md)
 - [Zugangsdaten, Tokens und Secrets](docs/zugangsdaten.md)
 
 ## Struktur des Projekts
@@ -115,7 +116,9 @@ Sie verfügt über ein Frontend in TypeScript, ein Backend in Golang und kommuni
 - Makefile (make run, make build)
   - `make run`: startet App und PostgreSQL lokal via Docker Compose
   - `make dev`: startet PostgreSQL in Docker, Backend und Frontend mit Hot Reload
-  - `make build`: baut das Docker-Image
+  - `make build`: baut das Docker-Image, Tag = Version aus Git (`make version`)
+  - `make deploy-demo`: deployt die Demo auf Cloud Run, Werte aus `.env`
+- Die Version der App ist unter `/api/version` abrufbar und steht unten auf jeder Seite
 - docs (Ordner mit Anleitungen)
 - build (Ordner mit Dockerfile und benötigten Build-Instruktionen)
 - web (Ordner, der das Web UI beinhaltet)

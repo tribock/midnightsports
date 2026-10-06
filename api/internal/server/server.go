@@ -31,7 +31,14 @@ var (
 	admins  = []string{RoleAdmin}
 )
 
+// BuildInfo beschreibt die laufende Version der App.
+type BuildInfo struct {
+	Version string `json:"version"`
+	Date    string `json:"date"`
+}
+
 type Server struct {
+	build        BuildInfo
 	cfg          *config.Config
 	db           *pgxpool.Pool
 	oauth        *oauth2.Config
@@ -41,16 +48,17 @@ type Server struct {
 	googleWallet *wallet.Google
 }
 
-func New(cfg *config.Config, db *pgxpool.Pool) (*Server, error) {
+func New(cfg *config.Config, db *pgxpool.Pool, build BuildInfo) (*Server, error) {
 	tz, err := time.LoadLocation("Europe/Zurich")
 	if err != nil {
 		return nil, err
 	}
 	s := &Server{
-		cfg: cfg,
-		db:  db,
-		tz:  tz,
-		mux: http.NewServeMux(),
+		build: build,
+		cfg:   cfg,
+		db:    db,
+		tz:    tz,
+		mux:   http.NewServeMux(),
 		oauth: &oauth2.Config{
 			ClientID:     cfg.GoogleClientID,
 			ClientSecret: cfg.GoogleClientSecret,
@@ -80,6 +88,9 @@ func (s *Server) routes() {
 	m := s.mux
 	m.HandleFunc("GET /api/health", func(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
+	})
+	m.HandleFunc("GET /api/version", func(w http.ResponseWriter, r *http.Request) {
+		writeJSON(w, http.StatusOK, s.build)
 	})
 	m.HandleFunc("GET /api/config", s.getConfig)
 	m.HandleFunc("GET /api/auth/login", s.login)

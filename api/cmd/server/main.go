@@ -16,6 +16,12 @@ import (
 	"github.com/tribock/midnightsports/api/internal/server"
 )
 
+// Werden beim Build gesetzt: -ldflags "-X main.version=... -X main.date=..."
+var (
+	version = "dev"
+	date    = "unknown"
+)
+
 func main() {
 	if err := run(); err != nil {
 		slog.Error("server stopped", "error", err)
@@ -24,6 +30,8 @@ func main() {
 }
 
 func run() error {
+	slog.Info("startup", "version", version, "date", date)
+
 	// .env im Projektverzeichnis (make dev startet im Ordner api)
 	cfg, err := config.Load("../.env", ".env")
 	if err != nil {
@@ -45,7 +53,7 @@ func run() error {
 		return err
 	}
 
-	srv, err := server.New(cfg, pool)
+	srv, err := server.New(cfg, pool, server.BuildInfo{Version: version, Date: date})
 	if err != nil {
 		return err
 	}

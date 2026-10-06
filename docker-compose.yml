@@ -19,6 +19,9 @@ services:
     build:
       context: .
       dockerfile: build/Dockerfile
+      args:
+        VERSION: ${VERSION:-dev}
+        BUILD_DATE: ${BUILD_DATE:-unknown}
     env_file:
       - path: .env
         required: false

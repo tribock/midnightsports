@@ -11,6 +11,7 @@ import (
 	"log/slog"
 	"net/http"
 	"net/mail"
+	"slices"
 	"strings"
 	"time"
 
@@ -141,7 +142,7 @@ func (s *Server) logout(w http.ResponseWriter, r *http.Request) {
 }
 
 // upsertUser sucht den Benutzer über die Google-ID oder Email und legt ihn bei Bedarf an.
-// Die Email aus ADMIN_EMAIL erhält immer die Rolle Admin.
+// Die Emails aus ADMIN_EMAIL erhalten immer die Rolle Admin.
 func (s *Server) upsertUser(ctx context.Context, email, sub, firstName, lastName string) (string, error) {
 	email = strings.ToLower(strings.TrimSpace(email))
 	var googleSub *string
@@ -167,7 +168,7 @@ func (s *Server) upsertUser(ctx context.Context, email, sub, firstName, lastName
 	if err != nil {
 		return "", err
 	}
-	if s.cfg.AdminEmail != "" && email == s.cfg.AdminEmail {
+	if slices.Contains(s.cfg.AdminEmail, email) {
 		_, err = s.db.Exec(ctx, `UPDATE users SET role = 'admin' WHERE id = $1`, id)
 	}
 	return id, err

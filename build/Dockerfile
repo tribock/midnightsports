@@ -12,7 +12,12 @@ WORKDIR /src
 COPY api/go.mod api/go.sum ./
 RUN go mod download
 COPY api/ ./
-RUN CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o /server ./cmd/server
+# Version und Build-Datum werden vom Makefile übergeben (git describe)
+ARG VERSION=dev
+ARG BUILD_DATE=unknown
+RUN CGO_ENABLED=0 go build -trimpath \
+    -ldflags="-s -w -X main.version=${VERSION} -X main.date=${BUILD_DATE}" \
+    -o /server ./cmd/server
 
 # Laufzeit-Image (enthält CA-Zertifikate für Google OAuth)
 FROM gcr.io/distroless/static-debian12:nonroot

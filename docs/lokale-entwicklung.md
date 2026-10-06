@@ -50,7 +50,9 @@ Es gibt zwei Varianten:
 | `make down` | Alle Container stoppen |
 | `make db-reset` | Datenbank löschen und neu anlegen (alle Daten gehen verloren) |
 | `make test` | Tests für Backend und Frontend ausführen |
-| `make build` | Docker-Image bauen |
+| `make version` | Aktuelle Version aus Git anzeigen |
+| `make build` | Docker-Image bauen und auf Docker Hub pushen (Tag = Version) |
+| `make deploy-demo` | Demo auf Cloud Run deployen (siehe [Demo-Deployment](deployment-demo.md)) |
 
 ## Datenbank
 
@@ -71,7 +73,7 @@ Es gibt zwei Varianten:
 
 - Mit `DEV_LOGIN=true` zeigt die Login-Seite ein Feld für eine beliebige Email-Adresse
 - Damit lassen sich mehrere Benutzer (Teilnehmer, Projektleiter) einfach testen
-- Die Email aus `ADMIN_EMAIL` erhält die Rolle Admin
+- Die Emails aus `ADMIN_EMAIL` (komma-getrennt) erhalten die Rolle Admin
 - Nur lokal verwenden, nie in Produktion setzen
 - Das Backend verweigert den Start, wenn `DEV_LOGIN=true` und keine localhost-URL konfiguriert ist
 

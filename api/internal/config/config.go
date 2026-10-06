@@ -18,7 +18,7 @@ type Config struct {
 	OAuthRedirectURL   string
 	SessionSecret      []byte
 	QRSigningKey       []byte
-	AdminEmail         string
+	AdminEmail         []string
 	DevLogin           bool
 	StaticDir          string
 
@@ -49,7 +49,7 @@ func Load(envFiles ...string) (*Config, error) {
 		OAuthRedirectURL:   os.Getenv("OAUTH_REDIRECT_URL"),
 		SessionSecret:      []byte(os.Getenv("SESSION_SECRET")),
 		QRSigningKey:       []byte(os.Getenv("QR_SIGNING_KEY")),
-		AdminEmail:         strings.ToLower(strings.TrimSpace(os.Getenv("ADMIN_EMAIL"))),
+		AdminEmail:         splitEmails(os.Getenv("ADMIN_EMAIL")),
 		DevLogin:           os.Getenv("DEV_LOGIN") == "true",
 		StaticDir:          os.Getenv("STATIC_DIR"),
 
@@ -72,6 +72,9 @@ func (c *Config) validate() error {
 	}
 	require("DATABASE_URL", c.DatabaseURL)
 	require("OAUTH_REDIRECT_URL", c.OAuthRedirectURL)
+	if u, err := url.Parse(c.OAuthRedirectURL); c.OAuthRedirectURL != "" && (err != nil || u.Host == "" || (u.Scheme != "http" && u.Scheme != "https")) {
+		errs = append(errs, errors.New("OAUTH_REDIRECT_URL muss eine vollständige URL sein, z.B. https://example.ch/api/auth/callback"))
+	}
 	if len(c.SessionSecret) < 32 {
 		errs = append(errs, errors.New("SESSION_SECRET muss mindestens 32 Zeichen lang sein"))
 	}
@@ -110,6 +113,17 @@ func (c *Config) BaseURL() string {
 // SecureCookies ist true, wenn die App über HTTPS erreichbar ist.
 func (c *Config) SecureCookies() bool {
 	return strings.HasPrefix(c.OAuthRedirectURL, "https://")
+}
+
+// splitEmails liest eine komma-getrennte Liste von Email-Adressen. Leere Einträge werden ignoriert.
+func splitEmails(s string) []string {
+	var emails []string
+	for _, e := range strings.Split(s, ",") {
+		if e = strings.ToLower(strings.TrimSpace(e)); e != "" {
+			emails = append(emails, e)
+		}
+	}
+	return emails
 }
 
 func getenv(key, fallback string) string {

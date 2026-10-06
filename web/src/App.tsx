@@ -1,5 +1,6 @@
+import { useEffect, useState } from 'react'
 import { BrowserRouter, Navigate, NavLink, Outlet, Route, Routes, useLocation } from 'react-router-dom'
-import type { Role } from './api'
+import { api, type BuildInfo, type Role } from './api'
 import { AuthProvider, isLeader, useAuth } from './auth'
 import { roleLabels } from './format'
 import AdminLocationsPage from './pages/AdminLocationsPage'
@@ -91,6 +92,22 @@ function Layout() {
       <main className="container">
         <Outlet />
       </main>
+      <VersionFooter />
     </>
+  )
+}
+
+function VersionFooter() {
+  const [build, setBuild] = useState<BuildInfo | null>(null)
+
+  useEffect(() => {
+    api.get<BuildInfo>('/version').then(setBuild).catch(() => setBuild(null))
+  }, [])
+
+  if (!build) return null
+  return (
+    <footer className="footer muted small" title={`Build: ${build.date}`}>
+      Version {build.version}
+    </footer>
   )
 }

@@ -102,6 +102,11 @@ export interface TimeEntry {
   eventDate: string
 }
 
+export interface BuildInfo {
+  version: string
+  date: string
+}
+
 export class ApiError extends Error {
   status: number
 

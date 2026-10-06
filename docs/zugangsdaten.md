@@ -12,7 +12,7 @@ Anleitung zum Erstellen aller benötigten Zugangsdaten.
 | `OAUTH_REDIRECT_URL` | Callback-URL nach Google-Login | `.env` | Umgebungsvariable |
 | `SESSION_SECRET` | Signiert Session-Cookies | `.env` | Secret Manager |
 | `QR_SIGNING_KEY` | Signiert die QR-Code-Tokens | `.env` | Secret Manager |
-| `ADMIN_EMAIL` | Google-Account des ersten Admins | `.env` | Umgebungsvariable |
+| `ADMIN_EMAIL` | Google-Accounts der Admins, komma-getrennt | `.env` | Umgebungsvariable |
 | `DEV_LOGIN` | Login ohne Google (nur lokal!) | `.env` | nie setzen |
 | `APPLE_PASS_TYPE_ID` | Apple Wallet: Pass Type ID (optional) | `.env` | Umgebungsvariable |
 | `APPLE_TEAM_ID` | Apple Wallet: Team ID (optional) | `.env` | Umgebungsvariable |
@@ -154,7 +154,7 @@ Hinweise:
 
 Kostenlos. Voraussetzung: Google-Cloud-Projekt (dasselbe wie für den OAuth Client).
 
-1. [Google Pay & Wallet Console](https://pay.google.com/business/console) → **Google Wallet API** → Issuer-Konto erstellen
+1. [Google Pay & Wallet Console](https://pay.google.com/business/console) → **Google Wallet API** → Issuer-Konto erstellen 
    - Issuer ID notieren → `GOOGLE_WALLET_ISSUER_ID`
 2. Google Wallet API aktivieren und Service Account erstellen:
 
