@@ -1,0 +1,114 @@
+# Vorlage Produktion: Platzhalter ${...} werden von `make deploy` mit envsubst ersetzt (Werte aus .env).
+# Nicht direkt mit gcloud deployen. Anleitung: docs/deployment-cloud-run.md
+#
+# Google Wallet ist aktiv. Optionale Funktionen (Apple Wallet, Login mit Apple) sind auskommentiert.
+# Zum Aktivieren die Blöcke mit derselben Überschrift an allen drei Stellen (env, volumeMounts, volumes)
+# einkommentieren.
+apiVersion: serving.knative.dev/v1
+kind: Service
+metadata:
+  name: ${SERVICE}
+  annotations:
+    run.googleapis.com/ingress: all
+    # Obergrenze für den ganzen Service. Ohne diese Angabe gilt der Standard von Cloud Run, nicht maxScale der Revision
+    run.googleapis.com/maxScale: "3"
+spec:
+  template:
+    metadata:
+      labels:
+        build-date: "${DEPLOY_LABEL}"
+      annotations:
+        run.googleapis.com/sessionAffinity: "false"
+        autoscaling.knative.dev/minScale: "0"
+        autoscaling.knative.dev/maxScale: "3"
+        run.googleapis.com/execution-environment: gen2
+        run.googleapis.com/cpu-throttling: "true"
+        # Verbindung zu Cloud SQL über den Unix-Socket /cloudsql/... (siehe Secret database-url)
+        run.googleapis.com/cloudsql-instances: ${GCP_PROJECT_ID}:${GCP_REGION}:${DB_INSTANCE}
+    spec:
+      containerConcurrency: 80
+      timeoutSeconds: 300
+      serviceAccountName: midnightsports-run@${GCP_PROJECT_ID}.iam.gserviceaccount.com
+      containers:
+        - name: app
+          image: ${RUN_IMAGE}:${IMAGE_TAG}
+          ports:
+            - name: http1
+              containerPort: 8080
+          env:
+            - name: OAUTH_REDIRECT_URL
+              value: ${PROD_URL}/api/auth/callback
+            - name: GOOGLE_CLIENT_ID
+              value: "${PROD_GOOGLE_CLIENT_ID}"
+            - name: ADMIN_EMAIL
+              value: "${ADMIN_EMAIL}"
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef: { name: database-url, key: latest }
+            - name: GOOGLE_CLIENT_SECRET
+              valueFrom:
+                secretKeyRef: { name: google-client-secret, key: latest }
+            - name: SESSION_SECRET
+              valueFrom:
+                secretKeyRef: { name: session-secret, key: latest }
+            - name: QR_SIGNING_KEY
+              valueFrom:
+                secretKeyRef: { name: qr-signing-key, key: latest }
+            - name: GOOGLE_WALLET_ISSUER_ID
+              value: "${GOOGLE_WALLET_ISSUER_ID}"
+            - name: GOOGLE_WALLET_KEY_FILE
+              value: /secrets/google-wallet/key.json
+            # Optional: Apple Wallet
+            # - name: APPLE_PASS_TYPE_ID
+            #   value: "${APPLE_PASS_TYPE_ID}"
+            # - name: APPLE_TEAM_ID
+            #   value: "${APPLE_TEAM_ID}"
+            # - name: APPLE_PASS_PEM_FILE
+            #   value: /secrets/apple-pass/pass.pem
+            # Optional: Login mit Apple (APPLE_TEAM_ID nur einmal aufführen)
+            # - name: APPLE_TEAM_ID
+            #   value: "${APPLE_TEAM_ID}"
+            # - name: APPLE_LOGIN_CLIENT_ID
+            #   value: "${PROD_APPLE_LOGIN_CLIENT_ID}"
+            # - name: APPLE_LOGIN_KEY_ID
+            #   value: "${PROD_APPLE_LOGIN_KEY_ID}"
+            # - name: APPLE_LOGIN_KEY_FILE
+            #   value: /secrets/apple-login/key.p8
+          resources:
+            limits: { cpu: "1", memory: 512Mi }
+          volumeMounts:
+            - name: google-wallet
+              mountPath: /secrets/google-wallet
+              readOnly: true
+            # Optional: Apple Wallet
+            # - name: apple-pass
+            #   mountPath: /secrets/apple-pass
+            #   readOnly: true
+            # Optional: Login mit Apple
+            # - name: apple-login
+            #   mountPath: /secrets/apple-login
+            #   readOnly: true
+      volumes:
+        - name: google-wallet
+          secret:
+            secretName: google-wallet
+            items:
+              - key: latest
+                path: key.json
+        # Optional: Apple Wallet
+        # - name: apple-pass
+        #   secret:
+        #     secretName: apple-pass-pem
+        #     items:
+        #       - key: latest
+        #         path: pass.pem
+        # Optional: Login mit Apple
+        # - name: apple-login
+        #   secret:
+        #     secretName: apple-login-key
+        #     items:
+        #       - key: latest
+        #         path: key.p8
+  traffic:
+    - percent: 100
+      latestRevision: true

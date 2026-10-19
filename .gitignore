@@ -1,0 +1,22 @@
+# Secrets
+.env
+*.json.secret
+client_secret*.json
+
+# Build
+/bin/
+/web/dist/
+/web/node_modules/
+
+# OS / IDE
+.DS_Store
+.idea/
+.vscode/
+
+# Zertifikate und Schlüssel (Wallet)
+/secrets/
+cost_minimal.csv
+docs/~$passungen.docx
+docs/Anpassungen.docx
+docs/Auszahlung.jpeg
+docs/Midnightsports_*.pdf

@@ -1,0 +1,56 @@
+Copyright (c) 2026 Louis Kern (tribock). Alle Rechte vorbehalten. / All rights reserved.
+
+DEUTSCH
+
+Dieser Quellcode, die Dokumentation und die daraus erstellten Programme und Container-Images
+(zusammen «Software») sind urheberrechtlich geschützt.
+
+1. Der Quellcode ist öffentlich einsehbar. Das Einsehen auf GitHub ist erlaubt, ebenso die Funktionen,
+   die die Nutzungsbedingungen von GitHub allen Nutzern gewähren (z.B. Anzeigen und Forken auf GitHub).
+   Daraus entsteht kein weiteres Nutzungsrecht.
+
+2. Jede weitere Nutzung braucht einen schriftlichen Vertrag mit dem Rechteinhaber. Das gilt insbesondere für:
+   - Ausführen, Installieren oder Betreiben der Software, auch zu Test- oder Demozwecken
+   - Anbieten der Software oder von Teilen davon als Dienst für Dritte (z.B. SaaS, Hosting)
+   - Kopieren, Ändern, Übersetzen oder Weiterentwickeln, auch in Teilen
+   - Weitergeben, Veröffentlichen, Verkaufen, Vermieten oder Unterlizenzieren
+
+3. Ein Vertrag kann Nutzungsrechte nur für die darin genannte Organisation, den Zweck und die Dauer einräumen.
+   Ohne Vertrag ist keine Nutzung erlaubt.
+
+4. Enthaltene Komponenten Dritter (z.B. Bibliotheken in go.mod und web/package.json) stehen unter ihren
+   eigenen Lizenzen. Diese bleiben unberührt.
+
+5. Die Software wird ohne Gewährleistung bereitgestellt, soweit ein Vertrag nichts anderes regelt.
+   Die Haftung ist im gesetzlich zulässigen Umfang ausgeschlossen.
+
+6. Es gilt schweizerisches Recht.
+
+Anfragen für eine Nutzung: https://github.com/tribock
+
+ENGLISH (for information; the German version prevails)
+
+This source code, its documentation and the programs and container images built from it ("Software")
+are protected by copyright.
+
+1. The source code is publicly visible. Viewing it on GitHub is permitted, as are the functions that GitHub's
+   Terms of Service grant to all users (e.g. viewing and forking on GitHub). No further rights are granted.
+
+2. Any other use requires a written agreement with the copyright holder, in particular:
+   - running, installing or operating the Software, including for testing or demonstration
+   - offering the Software or parts of it as a service to third parties (e.g. SaaS, hosting)
+   - copying, modifying, translating or developing it further, in whole or in part
+   - distributing, publishing, selling, renting or sublicensing it
+
+3. An agreement grants rights only to the organization, for the purpose and for the term it names.
+   Without an agreement, no use is permitted.
+
+4. Third-party components included (e.g. libraries in go.mod and web/package.json) remain under their
+   own licenses.
+
+5. The Software is provided without warranty unless an agreement states otherwise. Liability is excluded
+   to the extent permitted by law.
+
+6. Swiss law applies.
+
+Requests for use: https://github.com/tribock

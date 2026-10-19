@@ -1,0 +1,122 @@
+# Vorlage: Platzhalter ${...} werden von `make deploy-demo` mit envsubst ersetzt (Werte aus .env).
+# Nicht direkt mit gcloud deployen.
+#
+# Login mit Apple ist auskommentiert (wartet auf das Apple-Developer-Konto). Zum Aktivieren die Blöcke
+# "Optional: Login mit Apple" an allen drei Stellen (env, volumeMounts, volumes) einkommentieren und im
+# Makefile die Apple-Variablen bei DEMO_ENV unter require ergänzen.
+apiVersion: serving.knative.dev/v1
+kind: Service
+metadata:
+  name: midnightsports-demo
+  annotations:
+    run.googleapis.com/ingress: all
+    run.googleapis.com/maxScale: "1"
+spec:
+  template:
+    metadata:
+      labels:
+        build-date: "${DEPLOY_LABEL}"
+      annotations:
+        run.googleapis.com/sessionAffinity: "false"
+        autoscaling.knative.dev/minScale: "0"
+        autoscaling.knative.dev/maxScale: "1"
+        run.googleapis.com/execution-environment: gen2
+        run.googleapis.com/container-dependencies: '{"app":["postgres"]}'
+        run.googleapis.com/cpu-throttling: "true"
+    spec:
+      containerConcurrency: 80
+      timeoutSeconds: 300
+      serviceAccountName: midnightsports-run@${GCP_PROJECT_ID}.iam.gserviceaccount.com
+      containers:
+        - name: app
+          image: ${RUN_IMAGE}:${IMAGE_TAG}
+          ports:
+            - name: http1
+              containerPort: 8080
+          env:
+            - name: DATABASE_URL
+              value: postgres://midnightsports:midnightsports@localhost:5432/midnightsports?sslmode=disable
+            - name: OAUTH_REDIRECT_URL
+              value: https://midnightsports-demo-${GCP_PROJECT_NUMBER}.${GCP_REGION}.run.app/api/auth/callback
+            - name: GOOGLE_CLIENT_ID
+              value: "${DEMO_GOOGLE_CLIENT_ID}"
+            - name: ADMIN_EMAIL
+              value: "${ADMIN_EMAIL}"
+            - name: GOOGLE_CLIENT_SECRET
+              valueFrom:
+                secretKeyRef: { name: google-client-secret, key: latest }
+            - name: GOOGLE_WALLET_KEY_FILE
+              value: /secrets/google-wallet/key.json
+            - name: GOOGLE_WALLET_ISSUER_ID
+              value: "${GOOGLE_WALLET_ISSUER_ID}"
+            # Optional: Login mit Apple
+            # - name: APPLE_TEAM_ID
+            #   value: "${APPLE_TEAM_ID}"
+            # - name: APPLE_LOGIN_CLIENT_ID
+            #   value: "${DEMO_APPLE_LOGIN_CLIENT_ID}"
+            # - name: APPLE_LOGIN_KEY_ID
+            #   value: "${DEMO_APPLE_LOGIN_KEY_ID}"
+            # - name: APPLE_LOGIN_KEY_FILE
+            #   value: /secrets/apple-login/key.p8
+            - name: SESSION_SECRET
+              valueFrom:
+                secretKeyRef: { name: session-secret, key: latest }
+            - name: QR_SIGNING_KEY
+              valueFrom:
+                secretKeyRef: { name: qr-signing-key, key: latest }
+          resources:
+            limits: { cpu: "1", memory: 512Mi }
+          volumeMounts:
+            - name: google-wallet
+              mountPath: /secrets/google-wallet
+              readOnly: true
+            # Optional: Login mit Apple
+            # - name: apple-login
+            #   mountPath: /secrets/apple-login
+            #   readOnly: true
+          startupProbe:
+            tcpSocket: { port: 8080 }
+            timeoutSeconds: 240
+            periodSeconds: 240
+            failureThreshold: 1
+        - name: postgres
+          image: ${GCP_REGION}-docker.pkg.dev/${GCP_PROJECT_ID}/dockerhub/library/postgres:17-alpine
+          args: ["-c", "shared_buffers=32MB", "-c", "max_connections=20"]
+          env:
+            - name: POSTGRES_USER
+              value: midnightsports
+            - name: POSTGRES_PASSWORD
+              value: midnightsports
+            - name: POSTGRES_DB
+              value: midnightsports
+            - name: PGDATA
+              value: /var/lib/postgresql/data/pgdata
+          resources:
+            limits: { cpu: "0.5", memory: 256Mi }
+          volumeMounts:
+            - name: pgdata
+              mountPath: /var/lib/postgresql/data
+          startupProbe:
+            tcpSocket: { port: 5432 }
+            timeoutSeconds: 1
+            periodSeconds: 2
+            failureThreshold: 30
+      volumes:
+        - name: google-wallet
+          secret:
+            secretName: google-wallet
+            items:
+              - key: latest
+                path: key.json
+        # Optional: Login mit Apple
+        # - name: apple-login
+        #   secret:
+        #     secretName: apple-login-key
+        #     items:
+        #       - key: latest
+        #         path: key.p8
+        - name: pgdata
+          emptyDir: { medium: Memory, sizeLimit: 256Mi }
+  traffic:
+    - percent: 100
+      latestRevision: true

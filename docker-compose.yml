@@ -1,0 +1,40 @@
+services:
+  postgres:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_USER: midnightsports
+      POSTGRES_PASSWORD: midnightsports
+      POSTGRES_DB: midnightsports
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U midnightsports"]
+      interval: 2s
+      timeout: 3s
+      retries: 15
+
+  app:
+    build:
+      context: .
+      dockerfile: build/Dockerfile
+      args:
+        VERSION: ${VERSION:-dev}
+        BUILD_DATE: ${BUILD_DATE:-unknown}
+    env_file:
+      - path: .env
+        required: false
+    environment:
+      DATABASE_URL: postgres://midnightsports:midnightsports@postgres:5432/midnightsports?sslmode=disable
+      OAUTH_REDIRECT_URL: http://localhost:8080/api/auth/callback
+    volumes:
+      - ./secrets:/secrets:ro
+    ports:
+      - "8080:8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+volumes:
+  pgdata:
