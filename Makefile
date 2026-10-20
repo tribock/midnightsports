@@ -16,7 +16,7 @@ IMAGE ?= docker.io/tribock/midnightsports
 GCP_PROJECT_ID ?= midnightsports
 GCP_REGION ?= europe-west6
 
-.PHONY: run down db db-reset dev test build version demo-yaml deploy-demo deploy-yaml deploy instances
+.PHONY: run down db db-reset dev test build version demo-yaml deploy-demo deploy-yaml deploy instances logos
 
 ## run: App und PostgreSQL in Docker starten (http://localhost:8080)
 run:
@@ -126,6 +126,10 @@ deploy-yaml:
 ## deploy: Image bauen und Produktion auf Cloud Run deployen
 deploy: build
 	@$(PROD_ENV); $(call REPLACE_SERVICE,build/deploy/deploy.yaml,$(PROD_SUBST),$$SERVICE)
+
+## logos: Logos und Icons aus docs/logo/*.eps erzeugen (braucht python3 und rsvg-convert, brew install librsvg)
+logos:
+	python3 build/logo/generate.py
 
 ## instances: Laufende Instanzen pro Revision der letzten 5 Minuten (SERVICE=midnightsports-demo für die Demo)
 instances:

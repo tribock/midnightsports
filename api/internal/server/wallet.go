@@ -2,7 +2,6 @@ package server
 
 import (
 	"net/http"
-	"sync"
 
 	"github.com/tribock/midnightsports/api/internal/qr"
 	"github.com/tribock/midnightsports/api/internal/wallet"
@@ -58,11 +57,9 @@ func (s *Server) getGoogleWalletLink(w http.ResponseWriter, r *http.Request, u *
 	return nil
 }
 
-var walletLogo = sync.OnceValue(func() []byte { return wallet.IconPNG(660) })
-
 // getWalletLogo liefert das Logo, das Google Wallet öffentlich abruft.
 func (s *Server) getWalletLogo(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "image/png")
 	w.Header().Set("Cache-Control", "public, max-age=86400")
-	w.Write(walletLogo())
+	w.Write(wallet.GoogleLogoPNG())
 }

@@ -37,8 +37,13 @@ export default function LoginPage() {
 
   return (
     <main className="container narrow login">
-      <img src="/icon.svg" alt="" width={96} height={96} />
-      <h1>Midnightsports</h1>
+      <h1 className="login-logo">
+        {/* Im Dark Mode die weisse Variante, das blaue Logo wäre auf dunklem Grund kaum lesbar */}
+        <picture>
+          <source srcSet="/logo-white.svg" media="(prefers-color-scheme: dark)" />
+          <img src="/logo.svg" alt="Midnightsports" width={280} height={50} />
+        </picture>
+      </h1>
       <p className="muted">Events in den Turnhallen Guntershausen, Aadorf und Ettenhausen</p>
       {error && <p className="error">{error}</p>}
       <a className="button primary block" href="/api/auth/login">

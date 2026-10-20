@@ -2,10 +2,7 @@
 package wallet
 
 import (
-	"bytes"
-	"image"
-	"image/color"
-	"image/png"
+	"embed"
 	"strings"
 )
 
@@ -29,33 +26,19 @@ func (p Pass) birthDate() string {
 	return parts[2] + "." + parts[1] + "." + parts[0]
 }
 
-var (
-	colorBackground = color.RGBA{0x1b, 0x1f, 0x3b, 0xff}
-	colorAccent     = color.RGBA{0xf5, 0xc8, 0x4c, 0xff}
-)
+// Logos und Icons, erzeugt mit `make logos` aus docs/logo
+//
+//go:embed assets/*.png
+var assets embed.FS
 
-// IconPNG zeichnet das App-Icon (Mond auf dunklem Grund) in der gewünschten Grösse.
-func IconPNG(size int) []byte {
-	img := image.NewRGBA(image.Rect(0, 0, size, size))
-	s := float64(size)
-	// Mondsichel: grosser Kreis minus versetzter Kreis
-	cx, cy, r := 0.5*s, 0.5*s, 0.34*s
-	ox, oy := cx+0.17*s, cy-0.12*s
-	for y := 0; y < size; y++ {
-		for x := 0; x < size; x++ {
-			fx, fy := float64(x)+0.5, float64(y)+0.5
-			inMoon := sq(fx-cx)+sq(fy-cy) <= r*r
-			inShadow := sq(fx-ox)+sq(fy-oy) <= r*r
-			if inMoon && !inShadow {
-				img.Set(x, y, colorAccent)
-			} else {
-				img.Set(x, y, colorBackground)
-			}
-		}
+// asset liefert eine eingebettete PNG-Datei aus assets.
+func asset(name string) []byte {
+	b, err := assets.ReadFile("assets/" + name)
+	if err != nil {
+		panic(err)
 	}
-	var buf bytes.Buffer
-	png.Encode(&buf, img)
-	return buf.Bytes()
+	return b
 }
 
-func sq(v float64) float64 { return v * v }
+// GoogleLogoPNG ist das Logo, das Google Wallet über die öffentliche URL abruft (rund zugeschnitten, 660 px).
+func GoogleLogoPNG() []byte { return asset("icon-660.png") }

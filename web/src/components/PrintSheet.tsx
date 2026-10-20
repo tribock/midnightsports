@@ -9,8 +9,7 @@ export default function PrintSheet({ title, children }: { title: string; childre
   return createPortal(
     <div className="print-sheet">
       <header className="sheet-header">
-        <img src="/icon.svg" alt="" width={56} height={56} />
-        <strong className="sheet-org">Midnightsports</strong>
+        <img className="sheet-logo" src="/logo.svg" alt="Midnightsports" width={225} height={40} />
       </header>
       <h1 className="sheet-title">{title}</h1>
       {children}

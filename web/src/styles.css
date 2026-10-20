@@ -457,6 +457,16 @@ button.small {
   text-align: center;
 }
 
+.login-logo {
+  margin: 0 0 0.5rem;
+  line-height: 0;
+}
+
+.login-logo img {
+  max-width: 100%;
+  height: auto;
+}
+
 .login form {
   width: 100%;
   text-align: left;
@@ -832,8 +842,9 @@ dd {
   margin-bottom: 8mm;
 }
 
-.sheet-org {
-  font-size: 13pt;
+.sheet-logo {
+  height: 12mm;
+  width: auto;
 }
 
 .sheet-title {

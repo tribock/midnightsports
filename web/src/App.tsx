@@ -85,8 +85,7 @@ function Layout() {
     <>
       <header className="topbar">
         <NavLink to="/events" className="brand">
-          <img src="/icon.svg" alt="" width={28} height={28} />
-          Midnightsports
+          <img src="/logo-white.svg" alt="Midnightsports" width={158} height={28} />
         </NavLink>
         <span className="muted small">
           {user.firstName || user.email} · {roleLabels[user.role]}

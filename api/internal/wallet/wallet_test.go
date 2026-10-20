@@ -14,6 +14,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"encoding/pem"
+	"image/png"
 	"io"
 	"math/big"
 	"os"
@@ -168,4 +169,30 @@ func writeTestBundle(t *testing.T) string {
 	path := filepath.Join(t.TempDir(), "pass.pem")
 	os.WriteFile(path, buf.Bytes(), 0o600)
 	return path
+}
+
+// Die Logos werden mit `make logos` erzeugt. Apple verlangt genaue Grössen, sonst fehlt das Bild auf dem Pass
+func TestAssets(t *testing.T) {
+	tests := map[string][2]int{
+		"icon-29.png":  {29, 29},
+		"icon-58.png":  {58, 58},
+		"icon-87.png":  {87, 87},
+		"icon-660.png": {660, 660},
+		"logo.png":     {160, 0},
+		"logo@2x.png":  {320, 0},
+	}
+	for name, want := range tests {
+		cfg, err := png.DecodeConfig(bytes.NewReader(asset(name)))
+		if err != nil {
+			t.Errorf("%s: %v", name, err)
+			continue
+		}
+		if cfg.Width != want[0] || (want[1] != 0 && cfg.Height != want[1]) {
+			t.Errorf("%s: %dx%d, want %dx%d", name, cfg.Width, cfg.Height, want[0], want[1])
+		}
+		// Apple: Logo höchstens 160 x 50 Punkte
+		if strings.HasPrefix(name, "logo") && cfg.Height*160 > cfg.Width*50 {
+			t.Errorf("%s: %dx%d zu hoch für Apple Wallet", name, cfg.Width, cfg.Height)
+		}
+	}
 }

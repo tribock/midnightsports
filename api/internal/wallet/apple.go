@@ -53,11 +53,11 @@ func (a *Apple) Build(p Pass) ([]byte, error) {
 	}
 	files := map[string][]byte{
 		"pass.json":   passJSON,
-		"icon.png":    IconPNG(29),
-		"icon@2x.png": IconPNG(58),
-		"icon@3x.png": IconPNG(87),
-		"logo.png":    IconPNG(50),
-		"logo@2x.png": IconPNG(100),
+		"icon.png":    asset("icon-29.png"),
+		"icon@2x.png": asset("icon-58.png"),
+		"icon@3x.png": asset("icon-87.png"),
+		"logo.png":    asset("logo.png"),
+		"logo@2x.png": asset("logo@2x.png"),
 	}
 
 	manifest := map[string]string{}
@@ -106,7 +106,6 @@ func (a *Apple) passJSON(p Pass) map[string]any {
 		"serialNumber":       p.UserID,
 		"organizationName":   "Midnightsports",
 		"description":        "Midnightsports Teilnehmerausweis",
-		"logoText":           "Midnightsports",
 		"backgroundColor":    "rgb(27, 31, 59)",
 		"foregroundColor":    "rgb(255, 255, 255)",
 		"labelColor":         "rgb(245, 200, 76)",

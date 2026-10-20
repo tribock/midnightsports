@@ -65,6 +65,7 @@ gitignored and may be missing. Their content is captured in `docs/anforderungen.
 - Use CSS classes from `styles.css` (`stack`, `row`, `card`, `list`, `table`, `actions`, `badge`, `chip`, `icon-button`, `muted`, `small`, `error`) and its color tokens. New colors go into the tokens, light and dark
 - Printing: render a `PrintSheet` (`components/PrintSheet.tsx`, hidden on screen, the only thing printed) and call `printDocument(filename)`. "PDF" means the browser's "Save as PDF"
 - Pages with heavy libraries are lazy-loaded in `App.tsx`
+- Logos: sources are `docs/logo/*.eps`. `make logos` (`build/logo/generate.py`, needs `rsvg-convert`) generates `web/public/icon.svg`, `logo.svg`, `logo-white.svg` (header, dark mode), the PNG icons and the wallet images in `api/internal/wallet/assets/`. Never edit the generated files by hand
 
 ## Security
 
