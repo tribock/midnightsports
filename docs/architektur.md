@@ -48,7 +48,7 @@ flowchart LR
 
     subgraph RM["Mitarbeiter"]
         MA(["👤 Mitarbeiter<br/>+ alles von Teilnehmer"])
-        M1([Events erstellen, bearbeiten, absagen])
+        M1([Teilnehmerliste und Einsatz ansehen])
         M2([QR-Code scannen: Check-in])
         M3([Teilnehmer manuell oder als Gast erfassen])
         MA --- M1 & M2 & M3
@@ -56,12 +56,13 @@ flowchart LR
 
     subgraph RP["Projektleiter"]
         PL(["👤 Projektleiter<br/>+ alles von Mitarbeiter"])
+        P0([Events erstellen, bearbeiten, absagen])
         P1([Team einteilen])
         P2([Auszahlung mit Unterschrift, Spesenblatt drucken])
         P3([Bericht schreiben und drucken])
         P4([Zeiterfassung])
         P5([Notfallkontakte einsehen ¹])
-        PL --- P1 & P2 & P3 & P4 & P5
+        PL --- P0 & P1 & P2 & P3 & P4 & P5
     end
 
     subgraph RA["Admin"]

@@ -99,6 +99,8 @@ Alternativ kann die Veranstaltung auch in den Turnhallen in Aadorf oder in Etten
 ## Was ein Mitarbeiter kann
 
 - alles, was ein Projektleiter kann, ausser:
+  - keine Events erfassen, bearbeiten oder absagen (Teilnehmerliste ansehen, einchecken und Gäste erfassen geht)
+  - keine Auszahlung
   - keine Berichte (weder lesen noch schreiben)
   - keine Zeiterfassung
 - kann nicht als Projektleiter einem Event zugewiesen werden

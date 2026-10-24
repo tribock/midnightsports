@@ -22,7 +22,8 @@ Legende: ✅ umgesetzt · 🟡 teilweise / bewusst anders · ⬜ offen · ⛔ be
 
 | Anforderung | Stand | Umsetzung |
 |---|---|---|
-| Rollen Admin, Projektleiter, Mitarbeiter, Teilnehmer | ✅ | PL: wie MA plus Bericht und Zeiterfassung |
+| Rollen Admin, Projektleiter, Mitarbeiter, Teilnehmer | ✅ | PL: wie MA plus Events erfassen, Bericht, Auszahlung und Zeiterfassung |
+| Events erfassen und anpassen nur durch Projektleiter und Admins | ✅ | Mitarbeiter sehen Events und Teilnehmer, checken ein und erfassen Gäste |
 | Funktionen mit Lohn pro Einsatz (JC 20, JSC 40, SC 80, PL über Zeiterfassung) | ✅ | Administration → Funktionen |
 | Arbeitsgruppe (Team) am Event definieren, nur PL | ✅ | Event bearbeiten → Team. Der verantwortliche PL ist automatisch dabei |
 | Auszahlung: alle eingeteilten Personen, Empfang mit handschriftlicher Unterschrift | ✅ | Event → Auszahlung |

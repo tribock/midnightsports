@@ -78,7 +78,7 @@ gitignored and may be missing. Their content is captured in `docs/anforderungen.
 
 ## Domain rules (easy to break)
 
-- **Roles**: Teilnehmer < Mitarbeiter (events, check-in) < Projektleiter (+ team, wages, payout, reports, time tracking) < Admin (+ administration, users). Each role can do everything the role below can
+- **Roles**: Teilnehmer < Mitarbeiter (participant list, check-in, guests) < Projektleiter (+ create/edit/cancel events, team, wages, payout, reports, time tracking) < Admin (+ administration, users). Each role can do everything the role below can
 - **Functions** (JC, JSC, SC, PL) carry a wage per event; `salary NULL` means paid through time tracking (no amount at the event, no payout signature)
 - **Event staff** (`event_staff`) copies function and wage when someone is assigned, so later wage changes don't alter past events. If a person stays with the same function, the amount and the payout signature are kept (`staffEntry`). The responsible project lead is automatically part of the team (frontend, `EventFormPage`)
 - **Payout**: each salaried staff member signs on the device (PNG, max. 512 KB, stored in `event_staff.signature`); signing twice gives 409; the signature can be removed
