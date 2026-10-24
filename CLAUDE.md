@@ -22,7 +22,7 @@ gitignored and may be missing. Their content is captured in `docs/anforderungen.
     - `server.go`: all routes with their roles, error handling, JSON helpers, `validUUID`/`pathUUID`
     - `db.go`: DB helpers `execOne`, `loadUser`, `isForeignKeyViolation`, `isUniqueViolation`
     - `static.go`: serves `web/dist`, gzip + immutable caching for `/assets/`
-  - `internal/db/migrations/001_init.sql`: the complete schema (see below)
+  - `internal/db/migrations/`: `001_init.sql` is the initial schema, later changes are added as new files (see Schema below)
   - `internal/qr`, `internal/wallet`: signed QR tokens, Apple/Google Wallet passes
 - `web/`: React 19 + TypeScript + Vite, react-router 7, plain CSS. No UI library, no state library
   - `src/api.ts`: fetch wrapper and all API types (mirror the Go JSON structs, keep in sync)
@@ -37,14 +37,14 @@ gitignored and may be missing. Their content is captured in `docs/anforderungen.
 - `make dev`: Postgres in Docker, backend (`go run`, :8080) and frontend (Vite, :5173) with hot reload
 - `make run`: whole app in Docker (:8080), like production
 - `make test`: `go vet` + `go test` and `vitest`
-- `make db-reset`: delete and recreate the local database (needed after schema changes)
+- `make db-reset`: delete and recreate the **local** database (never in production)
 - Frontend only: `cd web && npm run build` (includes `tsc`), `npm test`
 - Backend only: `cd api && go vet ./... && go test ./...`
 
 ## Conventions
 
 - **Language**: UI texts, error messages, code comments, docs and test names are German, Swiss spelling (`ss`, never `ß`: "gross", "Strasse"). Identifiers are English
-- **Schema**: the app is not in production. There is exactly one migration, `001_init.sql`. Change it in place, never add a `002_…` file. The database is always rebuilt from scratch (`make db-reset`); no data migration or legacy compatibility needed
+- **Schema**: the app is in production on Cloud SQL with real data (since October 2026). Never change a migration that has already run (`001_init.sql` and later): production would never re-run it. Every schema change is a new file `00N_short_name.sql` (next number, runs once in a transaction at startup, `db.Migrate`). Write it so it works on existing data (defaults for new `NOT NULL` columns, data updates in the same file). Keep table and column names in `docs/architektur.md` (ERD) in sync. Before deploying a migration, take a Cloud SQL backup (`docs/deployment-cloud-run.md`, "Daten wiederherstellen"). A possible future multi-tenant version may be deployed fresh with a new schema; until then, this rule applies
 - **Comments**: short German comments explain *why*, at the density of the surrounding code
 - **Tests**: keep them simple: table tests for pure functions, no database in unit tests. Extract business rules into pure functions to test them (e.g. `staffEntry`, `validateProfile`, `parseSignature`)
 - Run `gofmt`, `go vet`, the tests and `npm run build` before finishing a change
