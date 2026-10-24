@@ -74,8 +74,22 @@ gcloud sql instances create $DB_INSTANCE \
   --edition=ENTERPRISE \
   --tier=db-f1-micro \
   --region=$REGION \
+  --availability-type=ZONAL \
+  --storage-type=SSD \
   --storage-size=10 \
-  --backup-start-time=02:00
+  --storage-auto-increase \
+  --storage-auto-increase-limit=20 \
+  --backup-start-time=02:00 \
+  --backup-location=$REGION \
+  --retained-backups-count=7 \
+  --enable-point-in-time-recovery \
+  --retained-transaction-log-days=7 \
+  --deletion-protection \
+  --retain-backups-on-delete \
+  --maintenance-window-day=WED \
+  --maintenance-window-hour=1 \
+  --insights-config-query-insights-enabled \
+  --ssl-mode=ENCRYPTED_ONLY
 
 gcloud sql databases create midnightsports --instance=$DB_INSTANCE
 
@@ -84,7 +98,30 @@ gcloud sql users create midnightsports --instance=$DB_INSTANCE --password=$DB_PA
 ```
 
 - `db-f1-micro` ist die günstigste Klasse (ohne SLA), bei Bedarf später auf `db-g1-small` wechseln
-- Tägliche Backups sind aktiviert
+- `ZONAL`: eine Zone in Zürich. Hochverfügbarkeit (`REGIONAL`) würde die Kosten verdoppeln und gilt bei
+  `db-f1-micro` ohnehin ohne SLA. Bei einem Ausfall der Zone: Backup in einer anderen Zone in Zürich wiederherstellen
+- `--backup-location`: Backups bleiben in Zürich. Ohne diese Angabe landen sie in der Multi-Region `eu`
+  ausserhalb der Schweiz
+- Tägliche Backups (7 behalten) und Point-in-Time-Recovery (7 Tage): Wiederherstellung auf jede Sekunde,
+  z.B. auf den Zeitpunkt vor einem versehentlichen Löschen
+- `--deletion-protection` verhindert versehentliches Löschen, `--retain-backups-on-delete` behält die Backups
+  auch nach dem Löschen der Instanz. Zum bewussten Löschen zuerst `--no-deletion-protection` setzen
+- Speicher wächst automatisch, höchstens bis 20 GB (wird nie wieder kleiner)
+- Wartungsfenster Mittwoch 01:00 UTC (03:00 Uhr in Zürich), nicht an einem Event-Abend
+- `ENCRYPTED_ONLY`: nur verschlüsselte Verbindungen, der Cloud SQL Connector von Cloud Run verwendet immer TLS
+
+Bestehende Instanz auf diese Einstellungen bringen (kann die Instanz kurz neu starten, nicht während eines Events):
+
+```sh
+gcloud sql instances patch $DB_INSTANCE \
+  --backup-location=$REGION \
+  --enable-point-in-time-recovery --retained-transaction-log-days=7 \
+  --deletion-protection --retain-backups-on-delete \
+  --storage-auto-increase-limit=20 \
+  --maintenance-window-day=WED --maintenance-window-hour=1 \
+  --insights-config-query-insights-enabled \
+  --ssl-mode=ENCRYPTED_ONLY
+```
 
 ### 5. OAuth Client erstellen
 
@@ -214,6 +251,118 @@ gcloud run revisions list --service=$SERVICE --region=$REGION
 gcloud run services update-traffic $SERVICE --region=$REGION \
   --to-revisions=<REVISION>=100
 ```
+
+## Daten wiederherstellen
+
+Vorhanden sind tägliche Backups (7 Stück) und Point-in-Time-Recovery (PITR, 7 Tage), beide in Zürich
+(siehe [Datenbank anlegen](#4-datenbank-anlegen)). Zeiten bei `gcloud` immer in UTC (Zürich = UTC+1, im Sommer UTC+2).
+
+### Welcher Weg?
+
+| Situation | Weg |
+|---|---|
+| Einzelne Daten versehentlich gelöscht oder falsch geändert (z.B. ein Event) | [PITR in eine Kopie](#zeitpunkt-wiederherstellen-pitr), dann die Daten zurückkopieren |
+| Ganze Datenbank beschädigt, Stand von einem bestimmten Zeitpunkt nötig | [PITR in eine Kopie](#zeitpunkt-wiederherstellen-pitr), dann [App auf die Kopie umstellen](#app-auf-die-kopie-umstellen) |
+| Stand eines nächtlichen Backups genügt | [Backup wiederherstellen](#backup-wiederherstellen) |
+| Instanz gelöscht | [Backup einer gelöschten Instanz](#backup-einer-gelöschten-instanz) |
+
+Grundsatz: immer zuerst **in eine neue Instanz** wiederherstellen, nie direkt über die laufende. So bleibt der aktuelle
+Stand erhalten, falls die Wiederherstellung nicht das Gewünschte bringt.
+
+### Vor riskanten Änderungen: Backup erstellen
+
+```sh
+gcloud sql backups create --instance=$DB_INSTANCE --description="vor <Änderung>"
+```
+
+### Zeitpunkt wiederherstellen (PITR)
+
+Erstellt eine neue Instanz mit dem Stand zum gewählten Zeitpunkt (sekundengenau, höchstens 7 Tage zurück):
+
+```sh
+gcloud sql instances clone $DB_INSTANCE $DB_INSTANCE-restore \
+  --point-in-time='2026-10-22T19:30:00Z'
+```
+
+- Dauert einige Minuten, die laufende Instanz ist davon nicht betroffen
+- Die Kopie kostet gleich viel wie die Original-Instanz, nach Gebrauch [löschen](#aufräumen)
+
+### Backup wiederherstellen
+
+Backups anzeigen:
+
+```sh
+gcloud sql backups list --instance=$DB_INSTANCE
+```
+
+Zielinstanz anlegen (gleicher Befehl wie in [Datenbank anlegen](#4-datenbank-anlegen), Name `$DB_INSTANCE-restore`),
+dann das Backup hineinspielen. **Alle Daten der Zielinstanz werden überschrieben:**
+
+```sh
+gcloud sql backups restore <BACKUP_ID> \
+  --backup-instance=$DB_INSTANCE \
+  --restore-instance=$DB_INSTANCE-restore
+```
+
+Direkt in die laufende Instanz (`--restore-instance=$DB_INSTANCE`) nur, wenn ihr aktueller Stand sicher wertlos ist:
+alle Änderungen seit dem Backup gehen verloren und die App ist während der Wiederherstellung nicht erreichbar.
+
+### Backup einer gelöschten Instanz
+
+Mit `--retain-backups-on-delete` bleiben die Backups nach dem Löschen erhalten.
+In der Console unter **Cloud SQL → Backups** die gelöschte Instanz wählen und das Backup in eine neue Instanz
+in `europe-west6` wiederherstellen.
+
+### Daten aus der Kopie ansehen und zurückkopieren
+
+Mit dem [Cloud SQL Auth Proxy](https://cloud.google.com/sql/docs/postgres/sql-proxy) lokal verbinden
+(braucht die Rolle `roles/cloudsql.client` für den eigenen Account):
+
+```sh
+cloud-sql-proxy --port=5433 $PROJECT_ID:$REGION:$DB_INSTANCE-restore
+psql "host=localhost port=5433 user=midnightsports dbname=midnightsports"
+```
+
+- Passwort: dasselbe wie in der Original-Instanz (steht im Secret `database-url`)
+- Einzelne Tabellen sichern, z.B. `pg_dump --data-only --table=events ... > events.sql`, und gezielt in die
+  laufende Instanz zurückspielen (gleicher Proxy-Befehl mit `$DB_INSTANCE`, anderer Port)
+- Fremdschlüssel beachten: zu einem Event gehören `event_staff`, `registrations`, `checkins` und `reports`
+- Die Dateien enthalten Personendaten: nach Gebrauch löschen, nicht ins Git
+
+### App auf die Kopie umstellen
+
+Wenn der Stand der Kopie übernommen werden soll:
+
+```sh
+# Neue Version des Secrets mit der Kopie als Instanz (Passwort wie bisher)
+printf '%s' "postgres://midnightsports:$DB_PASSWORD@/midnightsports?host=/cloudsql/$PROJECT_ID:$REGION:$DB_INSTANCE-restore" \
+  | gcloud secrets versions add database-url --data-file=-
+```
+
+In `.env` `DB_INSTANCE=midnightsports-db-restore` setzen (für die Annotation `cloudsql-instances`), dann `make deploy`.
+
+- Die alte Secret-Version löschen, sonst wird das Gratis-Kontingent überschritten
+  (`gcloud secrets versions destroy <VERSION> --secret=database-url`)
+- Die Kopie übernimmt nicht alle Einstellungen. Prüfen und bei Bedarf den `patch`-Befehl aus
+  [Datenbank anlegen](#4-datenbank-anlegen) auf die Kopie anwenden:
+
+  ```sh
+  gcloud sql instances describe $DB_INSTANCE-restore --format="yaml(region,settings.backupConfiguration,settings.deletionProtectionEnabled)"
+  ```
+
+### Aufräumen
+
+```sh
+gcloud sql instances patch $DB_INSTANCE-restore --no-deletion-protection
+gcloud sql instances delete $DB_INSTANCE-restore
+```
+
+Nur löschen, wenn die App nicht mehr auf diese Instanz zeigt.
+
+### Wiederherstellung üben
+
+Einmal pro Jahr (oder nach grösseren Änderungen) eine PITR-Kopie erstellen, mit dem Proxy prüfen, dass die Daten
+vollständig sind, und die Kopie wieder löschen. Kosten: wenige Rappen für die Stunde, in der sie läuft.
 
 ## Logs
 
