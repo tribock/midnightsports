@@ -22,11 +22,13 @@ Legende: ✅ umgesetzt · 🟡 teilweise / bewusst anders · ⬜ offen · ⛔ be
 
 | Anforderung | Stand | Umsetzung |
 |---|---|---|
-| Rollen Admin, Projektleiter, Mitarbeiter, Teilnehmer | ✅ | PL: wie MA plus Bericht und Zeiterfassung |
+| Rollen Admin, Projektleiter, Mitarbeiter, Teilnehmer | ✅ | PL: wie MA plus Events erfassen, Bericht, Auszahlung und Zeiterfassung |
+| Events erfassen und anpassen nur durch Projektleiter und Admins | ✅ | Mitarbeiter sehen Events und Teilnehmer, checken ein und erfassen Gäste |
 | Funktionen mit Lohn pro Einsatz (JC 20, JSC 40, SC 80, PL über Zeiterfassung) | ✅ | Administration → Funktionen |
 | Arbeitsgruppe (Team) am Event definieren, nur PL | ✅ | Event bearbeiten → Team. Der verantwortliche PL ist automatisch dabei |
 | Auszahlung: alle eingeteilten Personen, Empfang mit handschriftlicher Unterschrift | ✅ | Event → Auszahlung |
-| Auszahlung drucken: Name, Funktion, Betrag, Unterschrift | ✅ | Spesenblatt nach Vorlage `docs/Auszahlung.jpeg` (Papierformular von IdéeSport), mit eigenem Logo |
+| Auszahlung abschliessen: Zusammenfassung, Warnung bei fehlenden Unterschriften, Unterschrift des zuständigen PL | ✅ | Auszahlung → Abschliessen. Danach sind die Unterschriften gesperrt, der Abschluss kann aufgehoben werden |
+| Auszahlung drucken: Name, Funktion, Betrag, Unterschrift | ✅ | Erst nach dem Abschluss (im Abschlussfenster). | Spesenblatt nach Vorlage `docs/Auszahlung.jpeg` (Papierformular von IdéeSport), mit eigenem Logo |
 | Abendspesen: Name Coach, Unterschrift, Coachart mit Lohn, Total, druckbar | ✅ | Durch die Auszahlung abgedeckt |
 | Spalten „Hintergrund Stunden“, „Reise Tageskurs“ der Papiervorlage | ⬜ | Keine Daten in der App, bei Bedarf als leere Spalten ergänzen |
 

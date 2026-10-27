@@ -30,9 +30,9 @@ const (
 var (
 	allRoles = []string{RoleAdmin, RoleProjektleiter, RoleMitarbeiter, RoleTeilnehmer}
 	anyRole  = []string(nil)
-	// Events verwalten und Teilnehmer erfassen
+	// Teilnehmer erfassen und einchecken
 	leaders = []string{RoleProjektleiter, RoleMitarbeiter, RoleAdmin}
-	// Berichte und Zeiterfassung (ohne Mitarbeiter)
+	// Events erfassen und bearbeiten, Berichte, Auszahlung und Zeiterfassung (ohne Mitarbeiter)
 	projectLeads = []string{RoleProjektleiter, RoleAdmin}
 	admins       = []string{RoleAdmin}
 )
@@ -123,10 +123,11 @@ func (s *Server) routes() {
 	m.HandleFunc("GET /api/wallet/logo.png", s.getWalletLogo)
 
 	s.route("GET /api/events", anyRole, s.listEvents)
-	s.route("POST /api/events", leaders, s.createEvent)
+	// Events erfassen, bearbeiten und absagen nur Projektleiter und Admins, Mitarbeiter nur einchecken
+	s.route("POST /api/events", projectLeads, s.createEvent)
 	s.route("GET /api/events/{id}", anyRole, s.getEvent)
-	s.route("PUT /api/events/{id}", leaders, s.updateEvent)
-	s.route("POST /api/events/{id}/cancel", leaders, s.cancelEvent)
+	s.route("PUT /api/events/{id}", projectLeads, s.updateEvent)
+	s.route("POST /api/events/{id}/cancel", projectLeads, s.cancelEvent)
 	s.route("POST /api/events/{id}/registration", anyRole, s.register)
 	s.route("DELETE /api/events/{id}/registration", anyRole, s.unregister)
 	s.route("GET /api/events/{id}/participants", leaders, s.listParticipants)
@@ -138,6 +139,8 @@ func (s *Server) routes() {
 
 	s.route("GET /api/events/{id}/staff", leaders, s.listStaff)
 	s.route("GET /api/events/{id}/payout", projectLeads, s.listPayout)
+	s.route("PUT /api/events/{id}/payout/close", projectLeads, s.closePayout)
+	s.route("DELETE /api/events/{id}/payout/close", projectLeads, s.reopenPayout)
 	s.route("PUT /api/events/{id}/payout/{userId}", projectLeads, s.signPayout)
 	s.route("DELETE /api/events/{id}/payout/{userId}", projectLeads, s.unsignPayout)
 

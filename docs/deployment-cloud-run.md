@@ -242,7 +242,11 @@ make deploy
   schreibt die Version in die App und deployt es mit der Vorlage
 - Die laufende Version steht unten auf jeder Seite und unter `/api/version`
 - Jede Version hat einen eigenen Tag: so ist klar, welche Version läuft, und ein Rollback ist möglich
-- Datenbank-Migrationen laufen automatisch beim Start
+- Datenbank-Migrationen laufen automatisch beim Start (neue Dateien in `api/internal/db/migrations/`, je einmal)
+- Enthält die neue Version eine Migration: vorher ein Backup erstellen
+  (`gcloud sql backups create --instance=$DB_INSTANCE --description="vor <Version>"`).
+  Schlägt die Migration fehl, startet die neue Revision nicht und die bisherige läuft weiter
+- Bereits ausgeführte Migrationen nie ändern, Änderungen am Schema immer als neue Datei `00N_….sql`
 
 ## Rollback
 

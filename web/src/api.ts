@@ -168,6 +168,15 @@ export interface PayoutEntry {
   signedByName: string | null
 }
 
+/** Auszahlung an einem Event, abgeschlossen mit der Unterschrift der Projektleitung */
+export interface Payout {
+  entries: PayoutEntry[]
+  /** Unterschrift der Projektleitung als PNG, base64-kodiert */
+  signature?: string
+  closedAt: string | null
+  closedByName: string | null
+}
+
 export interface BuildInfo {
   version: string
   date: string

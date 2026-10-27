@@ -80,7 +80,8 @@ Alternativ kann die Veranstaltung auch in den Turnhallen in Aadorf oder in Etten
 - Zeigt alle eingeteilten Personen mit Name, Funktion und Betrag
 - Jede Person bestätigt den Empfang mit ihrer handschriftlichen Unterschrift im Eingabefeld (Finger, Stift oder Maus)
 - Eine versehentliche Unterschrift kann entfernt und neu erfasst werden
-- **Drucken** (oder im Druckdialog als PDF sichern): Spesenblatt mit Name, Funktion, Einsatz und Unterschrift, leeren Zeilen für Ergänzungen, Total pro Funktion und Feld für die Unterschrift der Projektleitung
+- **Abschliessen**: kurze Zusammenfassung (Personen, Unterschriften, Total), Warnung falls nicht alle unterschrieben haben, der zuständige Projektleiter unterschreibt. Danach sind die Unterschriften gesperrt; **Abschluss aufheben** gibt sie wieder frei
+- **Drucken** (nach dem Abschluss im Abschlussfenster, oder im Druckdialog als PDF sichern): Spesenblatt mit Name, Funktion, Einsatz und Unterschrift, leeren Zeilen für Ergänzungen, Total pro Funktion und Unterschrift der Projektleitung
 - Personen, die über die Zeiterfassung abgerechnet werden (z.B. PL), werden separat aufgeführt
 - Bleibt eine Person mit derselben Funktion eingeteilt, bleibt ihre Unterschrift beim Bearbeiten des Events erhalten
 
@@ -99,6 +100,8 @@ Alternativ kann die Veranstaltung auch in den Turnhallen in Aadorf oder in Etten
 ## Was ein Mitarbeiter kann
 
 - alles, was ein Projektleiter kann, ausser:
+  - keine Events erfassen, bearbeiten oder absagen (Teilnehmerliste ansehen, einchecken und Gäste erfassen geht)
+  - keine Auszahlung
   - keine Berichte (weder lesen noch schreiben)
   - keine Zeiterfassung
 - kann nicht als Projektleiter einem Event zugewiesen werden
