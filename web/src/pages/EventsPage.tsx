@@ -1,12 +1,13 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { api, errorMessage, type Event } from '../api'
-import { isLeader, isProjectLead, useAuth } from '../auth'
+import { errorMessage, type Event } from '../api'
+import { isLeader, isProjectLead } from '../auth'
 import { formatDate } from '../format'
+import { useProject } from '../project'
 
 export default function EventsPage() {
-  const { user } = useAuth()
-  const leader = isLeader(user)
+  const { api, base, member } = useProject()
+  const leader = isLeader(member)
   const [past, setPast] = useState(false)
   const [events, setEvents] = useState<Event[] | null>(null)
   const [error, setError] = useState('')
@@ -17,7 +18,7 @@ export default function EventsPage() {
       .get<Event[]>(`/events${past ? '?past=true' : ''}`)
       .then(setEvents)
       .catch((err) => setError(errorMessage(err)))
-  }, [past])
+  }, [api, past])
 
   function replace(updated: Event) {
     setEvents((list) => list?.map((e) => (e.id === updated.id ? updated : e)) ?? null)
@@ -30,8 +31,8 @@ export default function EventsPage() {
         {leader && (
           <div className="actions">
             <button onClick={() => setPast(!past)}>{past ? 'Kommende' : 'Vergangene'}</button>
-            {isProjectLead(user) && (
-              <Link to="/events/neu" className="button primary">
+            {isProjectLead(member) && (
+              <Link to={`${base}/events/neu`} className="button primary">
                 Neuer Event
               </Link>
             )}
@@ -63,6 +64,7 @@ export function EventCard({
   leader: boolean
   onChange: (e: Event) => void
 }) {
+  const { api, base } = useProject()
   const [error, setError] = useState('')
 
   async function toggleRegistration() {
@@ -77,7 +79,7 @@ export function EventCard({
 
   return (
     <article className={`card event ${e.cancelled ? 'cancelled' : ''}`}>
-      <Link to={`/events/${e.id}`} className="event-main">
+      <Link to={`${base}/events/${e.id}`} className="event-main">
         <div className="event-date">{formatDate(e.date)}</div>
         <div>
           {e.startTime} – {e.endTime} Uhr

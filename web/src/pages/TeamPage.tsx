@@ -1,12 +1,13 @@
 import { useEffect, useState } from 'react'
-import { api, errorMessage, type Func, type TeamMember } from '../api'
-import { isAdmin, useAuth } from '../auth'
+import { errorMessage, type Func, type TeamMember } from '../api'
+import { isAdmin } from '../auth'
 import { roleLabels, salaryLabel } from '../format'
+import { useProject } from '../project'
 
-/** Team: Projektleiter, Mitarbeiter und Admins mit ihrer Funktion. Ändern nur durch Admins. */
+/** Team: Projektleiter, Mitarbeiter und Admins des Projekts mit ihrer Funktion. Ändern nur durch Projekt-Admins. */
 export default function TeamPage() {
-  const { user } = useAuth()
-  const canEdit = isAdmin(user)
+  const { api, member } = useProject()
+  const canEdit = isAdmin(member)
   const [team, setTeam] = useState<TeamMember[] | null>(null)
   const [functions, setFunctions] = useState<Func[]>([])
   const [error, setError] = useState('')
@@ -18,7 +19,7 @@ export default function TeamPage() {
         setFunctions(f)
       })
       .catch((err) => setError(errorMessage(err)))
-  }, [])
+  }, [api])
 
   async function setFunction(member: TeamMember, value: string) {
     const fn = functions.find((f) => String(f.id) === value)
@@ -43,12 +44,12 @@ export default function TeamPage() {
     <div className="stack">
       <h1>Team</h1>
       <p className="muted">
-        Projektleiter, Mitarbeiter und Admins mit ihrer Funktion an Events. Rollen werden unter Benutzer vergeben
+        Projektleiter, Mitarbeiter und Admins mit ihrer Funktion an Events. Rollen werden unter Teilnehmer vergeben
         {canEdit ? ', Funktionen und Löhne unter Administration' : ''}.
       </p>
       {error && <p className="error">{error}</p>}
       {team === null && !error && <p className="muted">Laden…</p>}
-      {team?.length === 0 && <p className="muted">Noch niemand im Team. Rollen unter Benutzer vergeben.</p>}
+      {team?.length === 0 && <p className="muted">Noch niemand im Team. Rollen unter Teilnehmer vergeben.</p>}
       {team && team.length > 0 && <FunctionOverview team={team} functions={functions} />}
 
       <ul className="list">

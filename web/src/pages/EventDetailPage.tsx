@@ -1,26 +1,29 @@
 import { useCallback, useEffect, useState, type FormEvent } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import {
-  api,
   errorMessage,
   type CheckinResult,
   type Event,
+  type MemberSummary,
   type Participant,
   type Report,
   type StaffEntry,
-  type UserSummary,
+  type UserStatus,
 } from '../api'
-import { isAdmin, isLeader, isProjectLead, useAuth } from '../auth'
-import { age, formatAddress, formatCHF, formatDate, formatTime, statusLabels } from '../format'
+import { isAdmin, isLeader, isProjectLead } from '../auth'
+import { age, formatAddress, formatCHF, formatDate, formatTime, personName, statusLabels } from '../format'
 import EventInfo from '../components/EventInfo'
 import PrintSheet, { printDocument } from '../components/PrintSheet'
 import ProfileFields, { emptyProfile, type ProfileData } from '../components/ProfileFields'
+import { SanctionBadge, SanctionNotice } from '../components/Sanctions'
+import StatusSelect from '../components/StatusSelect'
+import { useProject } from '../project'
 import { EventCard } from './EventsPage'
 
 export default function EventDetailPage() {
   const { id } = useParams()
-  const { user } = useAuth()
-  const leader = isLeader(user)
+  const { api, base, member } = useProject()
+  const leader = isLeader(member)
   const [event, setEvent] = useState<Event | null>(null)
   // Einsatz wird einmal geladen und von Einsatz und Bericht gemeinsam verwendet
   const [staff, setStaff] = useState<StaffEntry[]>([])
@@ -32,7 +35,7 @@ export default function EventDetailPage() {
       .get<Event>(`/events/${id}`)
       .then(setEvent)
       .catch((err) => setError(errorMessage(err)))
-  }, [id])
+  }, [api, id])
 
   useEffect(() => {
     if (!leader) return
@@ -40,7 +43,7 @@ export default function EventDetailPage() {
       .get<StaffEntry[]>(`/events/${id}/staff`)
       .then(setStaff)
       .catch((err) => setStaffError(errorMessage(err)))
-  }, [id, leader])
+  }, [api, id, leader])
 
   async function setCancelled(cancelled: boolean) {
     if (cancelled && !confirm('Event absagen?')) return
@@ -56,7 +59,7 @@ export default function EventDetailPage() {
 
   return (
     <div className="stack">
-      <Link to="/events" className="muted">
+      <Link to={`${base}/events`} className="muted">
         ← Alle Events
       </Link>
       <h1>Event vom {formatDate(event.date)}</h1>
@@ -67,16 +70,16 @@ export default function EventDetailPage() {
         <>
           <div className="actions">
             {!event.cancelled && (
-              <Link to={`/events/${event.id}/scan`} className="button primary">
+              <Link to={`${base}/events/${event.id}/scan`} className="button primary">
                 QR-Code scannen
               </Link>
             )}
-            {isProjectLead(user) && (
+            {isProjectLead(member) && (
               <>
-                <Link to={`/events/${event.id}/bearbeiten`} className="button">
+                <Link to={`${base}/events/${event.id}/bearbeiten`} className="button">
                   Bearbeiten
                 </Link>
-                <Link to={`/events/${event.id}/auszahlung`} className="button">
+                <Link to={`${base}/events/${event.id}/auszahlung`} className="button">
                   Auszahlung
                 </Link>
                 <button className={event.cancelled ? '' : 'danger'} onClick={() => setCancelled(!event.cancelled)}>
@@ -87,7 +90,7 @@ export default function EventDetailPage() {
           </div>
           <Staff staff={staff} error={staffError} />
           <Participants eventId={event.id} disabled={event.cancelled} />
-          {isProjectLead(user) && <ReportEditor event={event} staff={staff} />}
+          {isProjectLead(member) && <ReportEditor event={event} staff={staff} />}
         </>
       )}
     </div>
@@ -128,22 +131,25 @@ function Staff({ staff, error }: { staff: StaffEntry[]; error: string }) {
 }
 
 function Participants({ eventId, disabled }: { eventId: number; disabled: boolean }) {
+  const { api, project } = useProject()
   const [list, setList] = useState<Participant[]>([])
   const [error, setError] = useState('')
+  // Ergebnis des letzten Check-ins aus der Liste, mit Meldung bei Verwarnung oder Sperre
+  const [last, setLast] = useState<CheckinResult | null>(null)
 
   const load = useCallback(() => {
     api
       .get<Participant[]>(`/events/${eventId}/participants`)
       .then(setList)
       .catch((err) => setError(errorMessage(err)))
-  }, [eventId])
+  }, [api, eventId])
 
   useEffect(load, [load])
 
   async function checkIn(userId: string) {
     setError('')
     try {
-      await api.post(`/events/${eventId}/checkins`, { userId })
+      setLast(await api.post<CheckinResult>(`/events/${eventId}/checkins`, { userId }))
       load()
     } catch (err) {
       setError(errorMessage(err))
@@ -163,6 +169,7 @@ function Participants({ eventId, disabled }: { eventId: number; disabled: boolea
         Teilnehmer <span className="muted small">({present} vor Ort)</span>
       </h2>
       {error && <p className="error">{error}</p>}
+      {last && <CheckinMessage result={last} />}
       {list.length === 0 && <p className="muted">Noch keine Anmeldungen.</p>}
       <ul className="list">
         {list.map((p) => (
@@ -171,8 +178,9 @@ function Participants({ eventId, disabled }: { eventId: number; disabled: boolea
             <span className="grow">
               {p.name}
               {p.birthDate && <span className="muted"> · {age(p.birthDate)} J.</span>}
-              {p.status && <span className="muted small"> · {statusLabels[p.status]}</span>}
+              {p.status && <span className="muted small"> · {statusLabels(project.region)[p.status]}</span>}
               {p.guest && <span className="badge">Gast</span>}
+              <SanctionBadge sanctions={p.sanctions} />
               {!p.registered && !p.guest && <span className="badge">nicht angemeldet</span>}
             </span>
             {p.checkedInAt ? (
@@ -195,11 +203,29 @@ function Participants({ eventId, disabled }: { eventId: number; disabled: boolea
   )
 }
 
-/** Erfassung über die Eingabemaske: bestehenden Teilnehmer suchen oder Gast erfassen. */
+/** Ergebnis eines Check-ins mit Meldung bei Verwarnung (eingecheckt) oder Sperre (nicht eingecheckt). */
+function CheckinMessage({ result }: { result: CheckinResult }) {
+  const name = personName(result.person)
+  const text = result.blocked
+    ? `${name} ist gesperrt und wurde nicht eingecheckt`
+    : result.alreadyCheckedIn
+      ? `${name} war bereits eingecheckt`
+      : `${name} eingecheckt`
+  return (
+    <div className="stack">
+      <p className="small">{text}</p>
+      <SanctionNotice sanctions={result.sanctions} />
+    </div>
+  )
+}
+
+/** Erfassung über die Eingabemaske: Mitglied des Projekts suchen oder Gast erfassen. */
 function ManualCheckin({ eventId, onDone }: { eventId: number; onDone: () => void }) {
+  const { api } = useProject()
   const [query, setQuery] = useState('')
-  const [results, setResults] = useState<UserSummary[]>([])
+  const [results, setResults] = useState<MemberSummary[]>([])
   const [guestOpen, setGuestOpen] = useState(false)
+  const [result, setResult] = useState<CheckinResult | null>(null)
   const [message, setMessage] = useState('')
 
   useEffect(() => {
@@ -210,17 +236,17 @@ function ManualCheckin({ eventId, onDone }: { eventId: number; onDone: () => voi
     // Antworten zu einem veralteten Suchbegriff ignorieren
     let current = true
     const t = setTimeout(() => {
-      api.get<UserSummary[]>(`/users?q=${encodeURIComponent(query)}`).then((list) => current && setResults(list))
+      api.get<MemberSummary[]>(`/members?q=${encodeURIComponent(query)}`).then((list) => current && setResults(list))
     }, 250)
     return () => {
       current = false
       clearTimeout(t)
     }
-  }, [query])
+  }, [api, query])
 
   function done(r: CheckinResult) {
-    const name = `${r.person.firstName} ${r.person.lastName}`
-    setMessage(r.alreadyCheckedIn ? `${name} war bereits eingecheckt` : `${name} eingecheckt`)
+    setResult(r)
+    setMessage('')
     setQuery('')
     setGuestOpen(false)
     onDone()
@@ -228,6 +254,7 @@ function ManualCheckin({ eventId, onDone }: { eventId: number; onDone: () => voi
 
   async function checkIn(userId: string) {
     setMessage('')
+    setResult(null)
     try {
       done(await api.post<CheckinResult>(`/events/${eventId}/checkins`, { userId }))
     } catch (err) {
@@ -238,14 +265,15 @@ function ManualCheckin({ eventId, onDone }: { eventId: number; onDone: () => voi
   return (
     <div className="card stack">
       <strong>Manuell erfassen</strong>
-      <input placeholder="Teilnehmer suchen (Name oder Email)" value={query} onChange={(e) => setQuery(e.target.value)} />
+      <input placeholder="Mitglied suchen (Name oder Email)" value={query} onChange={(e) => setQuery(e.target.value)} />
       {results.length > 0 && (
         <ul className="list">
           {results.map((u) => (
             <li key={u.id}>
               <span className="grow">
                 {u.firstName} {u.lastName}
-                {u.guest && <span className="badge">Gast</span>} <span className="muted small">{u.email}</span>
+                {u.guest && <span className="badge">Gast</span>}
+                <SanctionBadge sanctions={u.sanctions} /> <span className="muted small">{u.email}</span>
               </span>
               <button className="small" onClick={() => checkIn(u.id)}>
                 Einchecken
@@ -255,6 +283,7 @@ function ManualCheckin({ eventId, onDone }: { eventId: number; onDone: () => voi
         </ul>
       )}
       {message && <p className="small">{message}</p>}
+      {result && <CheckinMessage result={result} />}
       {guestOpen ? (
         <GuestForm eventId={eventId} onDone={done} onCancel={() => setGuestOpen(false)} />
       ) : (
@@ -266,7 +295,8 @@ function ManualCheckin({ eventId, onDone }: { eventId: number; onDone: () => voi
   )
 }
 
-/** Gast ohne Konto: dieselben Angaben wie im Profil, Email freiwillig. Wird als Benutzer gespeichert. */
+/** Gast ohne Konto: dieselben Angaben wie im Profil, Email freiwillig, plus Status im Projekt.
+ * Wird als Person gespeichert und beim Projekt angemeldet. */
 function GuestForm({
   eventId,
   onDone,
@@ -276,15 +306,16 @@ function GuestForm({
   onDone: (r: CheckinResult) => void
   onCancel: () => void
 }) {
-  const { user } = useAuth()
+  const { api, member, project } = useProject()
   const [form, setForm] = useState<ProfileData>(emptyProfile)
+  const [status, setStatus] = useState<UserStatus | ''>('')
   const [error, setError] = useState('')
 
   async function submit(e: FormEvent) {
     e.preventDefault()
     setError('')
     try {
-      onDone(await api.post<CheckinResult>(`/events/${eventId}/guests`, form))
+      onDone(await api.post<CheckinResult>(`/events/${eventId}/guests`, { ...form, status }))
     } catch (err) {
       setError(errorMessage(err))
     }
@@ -293,8 +324,11 @@ function GuestForm({
   return (
     <form className="stack" onSubmit={submit}>
       <strong>Neuer Gast</strong>
-      <p className="muted small">Der Gast wird als Benutzer gespeichert und kann an späteren Events über die Suche eingecheckt werden.</p>
-      <ProfileFields value={form} onChange={setForm} email="optional" canSetStaffStatus={isAdmin(user)} />
+      <p className="muted small">
+        Der Gast wird als Mitglied des Projekts gespeichert und kann an späteren Events über die Suche eingecheckt werden.
+      </p>
+      <ProfileFields value={form} onChange={setForm} email="optional" />
+      <StatusSelect value={status} onChange={setStatus} region={project.region} canSetStaff={isAdmin(member)} />
       {error && <p className="error">{error}</p>}
       <div className="actions">
         <button type="button" onClick={onCancel}>
@@ -309,6 +343,7 @@ function GuestForm({
 }
 
 function ReportEditor({ event, staff }: { event: Event; staff: StaffEntry[] }) {
+  const { api } = useProject()
   const [report, setReport] = useState<Report | null>(null)
   const [body, setBody] = useState('')
   const [status, setStatus] = useState('')
@@ -318,7 +353,7 @@ function ReportEditor({ event, staff }: { event: Event; staff: StaffEntry[] }) {
       setReport(r)
       setBody(r.body)
     })
-  }, [event.id])
+  }, [api, event.id])
 
   async function save(e: FormEvent) {
     e.preventDefault()
@@ -370,7 +405,7 @@ function ReportSheet({ event, report, staff, body }: { event: Event; report: Rep
   const a = report.attendance
   const address = formatAddress(event.location)
   return (
-    <PrintSheet title="Bericht Midnightsports">
+    <PrintSheet title="Bericht">
       <dl className="sheet-fields">
         <dt>Datum</dt>
         <dd>

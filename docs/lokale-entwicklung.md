@@ -62,7 +62,9 @@ Es gibt zwei Varianten:
 - Läuft im Container `postgres` auf `localhost:5432`
 - Benutzer, Passwort und Datenbank: `midnightsports`
 - Daten bleiben in einem Docker-Volume erhalten
-- Migrationen und Startdaten (Veranstaltungsorte) laufen automatisch beim Start des Backends
+- Migrationen und Startdaten (Projekt Aadorf mit Funktionen und Orten) laufen automatisch beim Start des Backends
+- Branch `feat/multitenancy`: neues Schema, eine bestehende lokale Datenbank einmal mit `make db-reset` neu anlegen
+  (das Backend startet sonst mit dem Hinweis auf unbekannte bzw. geänderte Migrationen nicht korrekt)
 - Zugriff mit psql:
 
   ```sh
@@ -73,7 +75,9 @@ Es gibt zwei Varianten:
 
 - Mit `DEV_LOGIN=true` zeigt die Login-Seite ein Feld für eine beliebige Email-Adresse
 - Damit lassen sich mehrere Benutzer (Teilnehmer, Projektleiter) einfach testen
-- Die Emails aus `ADMIN_EMAIL` (komma-getrennt) erhalten die Rolle Admin
+- Die Emails aus `ADMIN_EMAIL` (komma-getrennt) sind globale Admins: Projekte erfassen, Benutzer, Audit
+- Midnightsports Aadorf ist als erstes Projekt angelegt. Zum Testen: mit einer zweiten Email anmelden, bei Aadorf
+  anmelden und als globaler Admin unter Teilnehmer eine Rolle vergeben, oder unter Alle Projekte ein Projekt erfassen
 - Nur lokal verwenden, nie in Produktion setzen
 - Das Backend verweigert den Start, wenn `DEV_LOGIN=true` und keine localhost-URL konfiguriert ist
 

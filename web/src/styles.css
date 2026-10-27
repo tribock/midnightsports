@@ -91,6 +91,43 @@ a {
   text-decoration: none;
 }
 
+.brand-logo {
+  height: 28px;
+  width: auto;
+  max-width: 160px;
+  object-fit: contain;
+}
+
+/* Hochgeladene Logos sind meist für hellen Grund gemacht */
+.brand-logo.custom {
+  background: #fff;
+  border-radius: 6px;
+  padding: 2px 6px;
+  box-sizing: content-box;
+}
+
+.project-switcher {
+  flex: 0 1 14rem;
+  min-width: 0;
+  min-height: 36px;
+  padding: 0.25rem 0.5rem;
+  font-size: 0.9rem;
+}
+
+.topbar-user {
+  text-align: right;
+}
+
+@media (max-width: 600px) {
+  .topbar {
+    flex-wrap: wrap;
+  }
+
+  .topbar-user {
+    display: none;
+  }
+}
+
 .nav {
   display: flex;
   gap: 0.25rem;
@@ -345,6 +382,11 @@ button.small {
   color: var(--danger);
 }
 
+.badge.warn {
+  background: var(--warn-bg);
+  color: var(--warn);
+}
+
 /* Listen */
 
 .cards {
@@ -528,6 +570,36 @@ button.small {
 
 .scan-result.warn .scan-status {
   color: var(--warn);
+}
+
+.scan-result.blocked {
+  border: 2px solid var(--danger);
+}
+
+.scan-result.blocked .scan-status {
+  color: var(--danger);
+}
+
+/* Meldung bei Verwarnung (gelb) oder Sperre (rot): Scan, manueller Check-in, Teilnehmer */
+
+.sanction-notice {
+  padding: 0.6rem 0.9rem;
+  border-radius: var(--radius);
+  background: var(--warn-bg);
+  color: var(--warn);
+}
+
+.sanction-notice.sperre {
+  background: var(--danger-bg);
+  color: var(--danger);
+}
+
+.sanction-notice p {
+  margin: 0;
+}
+
+.sanction-notice p + p {
+  margin-top: 0.4rem;
 }
 
 .scan-result h2 {
@@ -947,4 +1019,69 @@ dd {
 .sheet-small {
   font-size: 9pt;
   margin-top: 4mm;
+}
+
+/* Projekte */
+
+.project-logo {
+  align-self: center;
+  max-width: 240px;
+  max-height: 80px;
+  width: auto;
+  height: auto;
+  object-fit: contain;
+}
+
+.project-result img,
+.project-row img {
+  width: 48px;
+  height: 32px;
+  object-fit: contain;
+}
+
+.project-row .actions {
+  flex-wrap: nowrap;
+}
+
+.share-line {
+  display: block;
+}
+
+.join-link {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 1rem;
+  overflow-wrap: anywhere;
+}
+
+.join-link .qr {
+  margin: 0;
+  padding: 0.5rem;
+}
+
+.stack-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.stack-cell label {
+  font-size: 0;
+}
+
+.stack-cell label select {
+  font-size: 1rem;
+}
+
+.table-scroll {
+  overflow-x: auto;
+}
+
+.table.audit {
+  min-width: 640px;
+}
+
+.table.audit td {
+  vertical-align: top;
 }

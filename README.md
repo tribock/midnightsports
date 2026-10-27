@@ -1,19 +1,23 @@
 # Midnightsports
 
-Ein Tool zur Verwaltung von Events von Midnightsports
+Ein Tool zur Verwaltung von Events von Midnightsports und Jugendtreffs, für mehrere Projekte (Mandanten).
 
-Genutzt wird das Tool von Projektleitern und Teilnehmern.
-Die Events sind wiederkehrende Veranstaltungen in der Turnhalle Guntershausen.
-Alternativ kann die Veranstaltung auch in den Turnhallen in Aadorf oder in Ettenhausen durchgeführt werden.
+Genutzt wird das Tool von Projektleitern und Teilnehmern. Jedes Projekt (z.B. Midnightsports Aadorf, Pleno) hat eigene
+Events, Orte, Funktionen und Mitglieder. Das erste Projekt ist Midnightsports Aadorf mit wiederkehrenden Veranstaltungen
+in den Turnhallen Guntershausen, Aadorf und Ettenhausen.
 
 > **Nutzung nur mit Vertrag.** Der Code ist öffentlich einsehbar, aber nicht Open Source.
 > Ausführen, Betreiben, Kopieren oder Weiterentwickeln ist nur mit einem schriftlichen Vertrag erlaubt.
 > Siehe [Lizenz und Nutzung](#lizenz-und-nutzung).
 
 
+Rollen gelten pro Projekt: Eine Person kann in einem Projekt Teilnehmerin und in einem anderen Mitarbeiterin sein.
+
 ## Was ein Teilnehmer kann
 
-- eigene Daten erfassen (Name, Vorname, Email, Geburtsdatum, Geschlecht, Status, Adresse und Notfallkontakt)
+- eigene Daten erfassen (Name, Vorname, Email, Geburtsdatum, Geschlecht, Adresse und Notfallkontakt), gültig für alle Projekte
+- Projekte suchen und sich bei Projekten anmelden (über die Startseite oder den Projekt-Link, z.B. QR-Code auf einem Plakat)
+- nach dem Login das Projekt aus den eigenen Projekten wählen (Startseite oder Kopfzeile)
 - Anzeigen seines QR-Codes, um sich beim Eintreffen am Event zu registrieren
 - QR-Code zu Apple Wallet oder Google Wallet hinzufügen (optional, wenn konfiguriert)
 - kommende Events anzeigen
@@ -24,7 +28,7 @@ Alternativ kann die Veranstaltung auch in den Turnhallen in Aadorf oder in Etten
 
 - Beim ersten Login muss das Profil vollständig ausgefüllt werden
 - Geschlecht: Auswahl Weiblich / Männlich / Divers
-- Status: Auswahl „Schüler-/in aus Aadorf" / „Gast extern"
+- Status pro Projekt, gewählt beim Anmelden beim Projekt: „Schüler-/in aus <Region des Projekts>" / „Gast extern"
 - Strasse ist freiwillig, PLZ und Ort sind Pflicht
 - Notfallkontakt: Name, Telefonnummer, Beziehung (Auswahl Vater / Mutter / Andere)
 - Keine Altersgrenze, keine Einwilligung der Eltern in der App
@@ -48,11 +52,12 @@ Alternativ kann die Veranstaltung auch in den Turnhallen in Aadorf oder in Etten
 - Jeder Teilnehmer hat einen festen QR-Code, gültig für alle Events
 - Der QR-Code enthält einen signierten Token, nicht die nackte ID
 - Ein Teilnehmer kann pro Event nur einmal eingecheckt werden
-- Nicht angemeldete Teilnehmer können vor Ort trotzdem eingecheckt werden
-- Eingabemaske: Suche nach bestehendem Teilnehmer
+- Nicht für den Event angemeldete Teilnehmer können vor Ort trotzdem eingecheckt werden, sie müssen aber beim Projekt angemeldet sein
+- Verwarnte Teilnehmer werden eingecheckt, das Gerät zeigt eine gelbe Meldung mit Grund. Gesperrte werden nicht eingecheckt (rote Meldung)
+- Eingabemaske: Suche nach Mitgliedern des Projekts
 - Personen ohne Konto können als Gast erfasst werden
   - gleiche Pflichtfelder wie im Profil, nur die Email ist freiwillig
-  - Gäste werden als Benutzer gespeichert (Kennzeichen „Gast") und sind an späteren Events über die Suche auffindbar
+  - Gäste werden als Benutzer gespeichert (Kennzeichen „Gast"), sind Mitglied des Projekts und an späteren Events über die Suche auffindbar
   - meldet sich ein Gast später mit derselben Email an, übernimmt er das Konto
 
 ### Events
@@ -105,21 +110,35 @@ Alternativ kann die Veranstaltung auch in den Turnhallen in Aadorf oder in Etten
   - keine Zeiterfassung
 - kann nicht als Projektleiter einem Event zugewiesen werden
 
-## Was ein Admin kann
+## Verwarnungen und Sperren
 
-- alles, was ein Projektleiter kann
-- Rollen vergeben und entziehen
-- Benutzer löschen (auch Gäste), Check-ins bleiben anonymisiert erhalten
-- Seite **Benutzer** als Tabelle (Name, Rolle, Aktionen): Notfallkontakt (Telefon-Symbol), Bearbeiten (Stift) und Löschen (Papierkorb)
-- Profile bearbeiten: alle Profilangaben, bei Gästen zusätzlich die Email. Meldet sich der Gast danach mit dieser Email über Google an, übernimmt er das Konto
+- Projektleiter und Projekt-Admins verwarnen oder sperren Teilnehmer ihres Projekts mit Grund (Seite **Teilnehmer**, Stift)
+- Verwarnt: Check-in möglich, mit Meldung. Gesperrt: kein Check-in, keine Anmeldung zu Events
+- Fristen pro Projekt (Administration): Sperre nach X Tagen aufheben oder in eine Verwarnung umwandeln, Verwarnung nach Y Tagen löschen
+- Sichtbar nur im Projekt, das sie erfasst hat, und in Partnerprojekten, mit denen geteilt wird (siehe globaler Admin)
+
+## Was ein Projekt-Admin kann
+
+- alles, was ein Projektleiter kann, im eigenen Projekt
+- Seite **Teilnehmer**: alle Mitglieder des Projekts (nur dieses Projekts), Rolle und Status vergeben, Notfallkontakt (Telefon-Symbol), Verwarnen/Sperren (Stift)
+- Seite **Administration**: Projekt-Link mit QR-Code, Funktionen mit Lohn, Zugriff auf Notfallkontakte, Fristen für Verwarnungen, geteilte Verwarnungen (Einwilligung), Veranstaltungsorte
+- Profile ändern und Personen löschen kann nur der globale Admin
+
+## Was ein globaler Admin kann
+
+- Festgelegt über `ADMIN_EMAIL`, in jedem Projekt Projekt-Admin
+- **Alle Projekte**: Projekte erfassen (Onboarding): Name, Kurzname, Region, Logo, Projekt-Admin per Email, Funktionen mit Bezeichnung und Lohn (z.B. JC, JSC, SC, PL), erster Veranstaltungsort
+- Beim Erfassen festlegen, mit welchen Projekten Verwarnungen und Sperren geteilt werden. Das neue Projekt bleibt gesperrt, bis die Projekt-Admins der Partner eingewilligt haben
+- **Benutzer**: alle Personen über alle Projekte, Profile bearbeiten (bei Gästen auch die Email), Personen löschen (Check-ins bleiben anonymisiert)
+- **Audit**: Protokoll aller datenschutzrelevanten Vorgänge (Zugriffe auf Notfallkontakte und Profile, Änderungen, Löschungen, Exporte, Rollen, Verwarnungen, Teilen)
 
 ## Notfallkontakte
 
-- Seite **Benutzer** mit Button „Notfallkontakt" pro Person
+- Seite **Teilnehmer** mit Button „Notfallkontakt" pro Person, jeder Abruf wird im Audit-Protokoll festgehalten
 - Zugriff: Personen, deren Rolle oder Funktion Zugriff hat
-- Welche Rollen und Funktionen Zugriff haben, legen Admins unter **Administration** fest (Standard: Projektleiter)
-- Admins haben immer Zugriff, Teilnehmer nie
-- Rollen ändern, Benutzer bearbeiten und löschen bleibt Admins vorbehalten
+- Welche Rollen und Funktionen Zugriff haben, legen Projekt-Admins unter **Administration** fest (Standard: Projektleiter)
+- Projekt-Admins und globale Admins haben immer Zugriff, Teilnehmer nie
+- Rollen ändern bleibt Projekt-Admins vorbehalten, Benutzer bearbeiten und löschen dem globalen Admin
 - Ohne Zugriff wird der Notfallkontakt auch beim Check-in (Scan) nicht angezeigt
 - Seite **Administration**: Funktionen mit Lohn pro Einsatz und Veranstaltungsorte verwalten
   - Startwerte: JC (20 CHF), JSC (40 CHF), SC (80 CHF), PL (über Zeiterfassung)
@@ -130,22 +149,22 @@ Alternativ kann die Veranstaltung auch in den Turnhallen in Aadorf oder in Etten
 
 ## Veranstaltungsorte
 
-- Orte werden in der Datenbank gespeichert
-- Initial angelegt: Guntershausen, Aadorf, Ettenhausen (inkl. Adressen der Turnhallen)
+- Orte werden pro Projekt in der Datenbank gespeichert
+- Aadorf: Guntershausen, Aadorf, Ettenhausen (inkl. Adressen der Turnhallen). Neue Projekte erhalten beim Onboarding einen ersten Ort
 - Orte können unter **Administration** bearbeitet und neue Orte erfasst werden
 
 ## Authentifizierung
 
 - Alle Benutzer melden sich über ihren Google Account oder ihre Apple ID an (Apple optional, wenn konfiguriert)
-- Es gibt die Rollen Admin, Projektleiter, Mitarbeiter und Teilnehmer
-- Standardmässig hat der Benutzer die Rolle Teilnehmer
-- Die Admins werden über die Umgebungsvariable `ADMIN_EMAIL` festgelegt (komma-getrennt, z.B. `a@gmail.com,b@gmail.com`)
+- Rollen pro Projekt: Projekt-Admin, Projektleiter, Mitarbeiter und Teilnehmer. Beim Anmelden bei einem Projekt ist man Teilnehmer
+- Die globalen Admins werden über die Umgebungsvariable `ADMIN_EMAIL` festgelegt (komma-getrennt, z.B. `a@gmail.com,b@gmail.com`)
 - Google OAuth 2.0 bzw. Sign in with Apple, Session über HttpOnly-Cookie, Sessions in der Datenbank
 
 ## Datenschutz
 
 - Teilnehmer sehen nur ihre eigenen Daten
-- Projektleiter und Admins sehen die Daten aller Teilnehmer
+- Projektleiter und Projekt-Admins sehen die Daten der Mitglieder ihres Projekts, nicht die anderer Projekte
+- Datenschutzrelevante Vorgänge werden im Audit-Protokoll festgehalten (globaler Admin)
 - Bei Kontolöschung bleiben Check-ins anonymisiert für die Statistik erhalten
 - Keine automatische Löschung nach Frist
 

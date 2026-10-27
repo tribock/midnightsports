@@ -1,10 +1,11 @@
 import { useCallback, useEffect, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
-import { api, errorMessage, type Event, type PayoutEntry } from '../api'
+import { errorMessage, type Event, type PayoutEntry } from '../api'
 import EventInfo from '../components/EventInfo'
 import PrintSheet, { printDocument } from '../components/PrintSheet'
 import SignaturePad from '../components/SignaturePad'
 import { formatCHF, formatDate, formatShortDate } from '../format'
+import { useProject } from '../project'
 
 /**
  * Auszahlung am Event (Projektleiter und Admins): alle eingeteilten Personen mit Betrag.
@@ -12,6 +13,7 @@ import { formatCHF, formatDate, formatShortDate } from '../format'
  */
 export default function PayoutPage() {
   const { id } = useParams()
+  const { api, base } = useProject()
   const [event, setEvent] = useState<Event | null>(null)
   const [entries, setEntries] = useState<PayoutEntry[]>([])
   const [signing, setSigning] = useState<PayoutEntry | null>(null)
@@ -22,7 +24,7 @@ export default function PayoutPage() {
       .get<PayoutEntry[]>(`/events/${id}/payout`)
       .then(setEntries)
       .catch((err) => setError(errorMessage(err)))
-  }, [id])
+  }, [api, id])
 
   useEffect(() => {
     api
@@ -30,7 +32,7 @@ export default function PayoutPage() {
       .then(setEvent)
       .catch((err) => setError(errorMessage(err)))
     load()
-  }, [id, load])
+  }, [api, id, load])
 
   async function unsign(e: PayoutEntry) {
     if (!confirm(`Unterschrift von ${e.name} entfernen?`)) return
@@ -51,7 +53,7 @@ export default function PayoutPage() {
 
   return (
     <div className="stack">
-      <Link to={`/events/${event.id}`} className="muted">
+      <Link to={`${base}/events/${event.id}`} className="muted">
         ← Zurück zum Event
       </Link>
       <div className="page-header">
@@ -150,6 +152,7 @@ function SignDialog({
   onClose: () => void
   onSigned: () => void
 }) {
+  const { api } = useProject()
   const [signature, setSignature] = useState<string | null>(null)
   const [error, setError] = useState('')
   const [saving, setSaving] = useState(false)
@@ -192,6 +195,7 @@ const extraRows = 3
 
 /** Spesenblatt zum Drucken: Einsatz und Unterschrift pro Person, Total pro Funktion, Unterschrift Projektleitung. */
 function PayoutSheet({ event, paid, byTime }: { event: Event; paid: PayoutEntry[]; byTime: PayoutEntry[] }) {
+  const { project } = useProject()
   const total = paid.reduce((sum, e) => sum + (e.salary ?? 0), 0)
   // Total pro Funktion in der Reihenfolge der Liste
   const byFunction = new Map<string, number>()
@@ -200,7 +204,7 @@ function PayoutSheet({ event, paid, byTime }: { event: Event; paid: PayoutEntry[
   return (
     <PrintSheet title="Spesenblatt: Löhne und Entschädigungen">
       <dl className="sheet-fields">
-        <dt>Midnightsports</dt>
+        <dt>{project.name}</dt>
         <dd>{event.location.name}</dd>
         <dt>Datum</dt>
         <dd>

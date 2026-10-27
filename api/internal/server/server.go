@@ -27,6 +27,7 @@ const (
 	RoleTeilnehmer    = "teilnehmer"
 )
 
+// Rollen in einem Projekt (project_members.role). Admin ist der Projekt-Admin.
 var (
 	allRoles = []string{RoleAdmin, RoleProjektleiter, RoleMitarbeiter, RoleTeilnehmer}
 	anyRole  = []string(nil)
@@ -113,62 +114,95 @@ func (s *Server) routes() {
 	m.HandleFunc("POST /api/auth/apple/callback", s.appleCallback)
 	m.HandleFunc("POST /api/auth/dev-login", s.devLogin)
 	m.HandleFunc("POST /api/auth/logout", s.logout)
-
-	s.route("GET /api/me", anyRole, s.getMe)
-	s.route("PUT /api/me", anyRole, s.updateMe)
-	s.route("DELETE /api/me", anyRole, s.deleteMe)
-	s.route("GET /api/me/qr", anyRole, s.getMyQR)
-	s.route("GET /api/me/wallet/apple", anyRole, s.getAppleWalletPass)
-	s.route("GET /api/me/wallet/google", anyRole, s.getGoogleWalletLink)
 	m.HandleFunc("GET /api/wallet/logo.png", s.getWalletLogo)
+	// Öffentlich für die Login-Seite über den Projekt-Link: nur Name, Region und Logo aktiver Projekte
+	m.HandleFunc("GET /api/public/projects/{project}", s.publicProject)
+	m.HandleFunc("GET /api/public/projects/{project}/logo", s.projectLogo)
 
-	s.route("GET /api/events", anyRole, s.listEvents)
+	// Person (global)
+	s.route("GET /api/me", s.getMe)
+	s.route("PUT /api/me", s.updateMe)
+	s.route("DELETE /api/me", s.deleteMe)
+	s.route("GET /api/me/qr", s.getMyQR)
+	s.route("GET /api/me/wallet/apple", s.getAppleWalletPass)
+	s.route("GET /api/me/wallet/google", s.getGoogleWalletLink)
+
+	// Projekte suchen und sich anmelden
+	s.route("GET /api/projects", s.searchProjects)
+	s.route("POST /api/projects/{project}/join", s.joinProject)
+
+	// Globale Administration
+	s.adminRoute("GET /api/admin/projects", s.listAdminProjects)
+	s.adminRoute("POST /api/admin/projects", s.createProject)
+	s.adminRoute("PUT /api/admin/projects/{project}", s.updateProject)
+	s.adminRoute("DELETE /api/admin/projects/{project}/shares/{partner}", s.removeShare)
+	s.adminRoute("GET /api/admin/users", s.listAdminUsers)
+	s.adminRoute("GET /api/admin/users/{id}", s.getAdminUser)
+	s.adminRoute("PUT /api/admin/users/{id}", s.updateAdminUser)
+	s.adminRoute("DELETE /api/admin/users/{id}", s.deleteAdminUser)
+	s.adminRoute("GET /api/admin/audit", s.listAudit)
+
+	// Projekt: alle Routen unter /api/p/{project}/, Rollen gelten pro Projekt
+	p := func(pattern string, roles []string, h memberHandler) {
+		method, path, _ := strings.Cut(pattern, " ")
+		s.projectRoute(method+" /api/p/{project}"+path, roles, h)
+	}
+	p("GET /me", anyRole, s.getProjectMe)
+
+	p("GET /events", anyRole, s.listEvents)
 	// Events erfassen, bearbeiten und absagen nur Projektleiter und Admins, Mitarbeiter nur einchecken
-	s.route("POST /api/events", projectLeads, s.createEvent)
-	s.route("GET /api/events/{id}", anyRole, s.getEvent)
-	s.route("PUT /api/events/{id}", projectLeads, s.updateEvent)
-	s.route("POST /api/events/{id}/cancel", projectLeads, s.cancelEvent)
-	s.route("POST /api/events/{id}/registration", anyRole, s.register)
-	s.route("DELETE /api/events/{id}/registration", anyRole, s.unregister)
-	s.route("GET /api/events/{id}/participants", leaders, s.listParticipants)
-	s.route("POST /api/events/{id}/checkins", leaders, s.checkIn)
-	s.route("POST /api/events/{id}/guests", leaders, s.createGuest)
-	s.route("DELETE /api/events/{id}/checkins/{checkinID}", leaders, s.deleteCheckIn)
-	s.route("GET /api/events/{id}/report", projectLeads, s.getReport)
-	s.route("PUT /api/events/{id}/report", projectLeads, s.saveReport)
+	p("POST /events", projectLeads, s.createEvent)
+	p("GET /events/{id}", anyRole, s.getEvent)
+	p("PUT /events/{id}", projectLeads, s.updateEvent)
+	p("POST /events/{id}/cancel", projectLeads, s.cancelEvent)
+	p("POST /events/{id}/registration", anyRole, s.register)
+	p("DELETE /events/{id}/registration", anyRole, s.unregister)
+	p("GET /events/{id}/participants", leaders, s.listParticipants)
+	p("POST /events/{id}/checkins", leaders, s.checkIn)
+	p("POST /events/{id}/guests", leaders, s.createGuest)
+	p("DELETE /events/{id}/checkins/{checkinID}", leaders, s.deleteCheckIn)
+	p("GET /events/{id}/report", projectLeads, s.getReport)
+	p("PUT /events/{id}/report", projectLeads, s.saveReport)
 
-	s.route("GET /api/events/{id}/staff", leaders, s.listStaff)
-	s.route("GET /api/events/{id}/payout", projectLeads, s.listPayout)
-	s.route("PUT /api/events/{id}/payout/{userId}", projectLeads, s.signPayout)
-	s.route("DELETE /api/events/{id}/payout/{userId}", projectLeads, s.unsignPayout)
+	p("GET /events/{id}/staff", leaders, s.listStaff)
+	p("GET /events/{id}/payout", projectLeads, s.listPayout)
+	p("PUT /events/{id}/payout/{userId}", projectLeads, s.signPayout)
+	p("DELETE /events/{id}/payout/{userId}", projectLeads, s.unsignPayout)
 
-	s.route("GET /api/team", leaders, s.listTeam)
-	s.route("PUT /api/team/{id}/function", admins, s.setMemberFunction)
+	p("GET /team", leaders, s.listTeam)
+	p("PUT /team/{id}/function", admins, s.setMemberFunction)
 
-	s.route("GET /api/functions", projectLeads, s.listFunctions)
-	s.route("POST /api/functions", admins, s.createFunction)
-	s.route("PUT /api/functions/{id}", admins, s.updateFunction)
-	s.route("DELETE /api/functions/{id}", admins, s.deleteFunction)
+	p("GET /functions", projectLeads, s.listFunctions)
+	p("POST /functions", admins, s.createFunction)
+	p("PUT /functions/{id}", admins, s.updateFunction)
+	p("DELETE /functions/{id}", admins, s.deleteFunction)
 
-	s.route("GET /api/emergency-access", admins, s.getEmergencyAccess)
-	s.route("PUT /api/emergency-access", admins, s.setEmergencyAccess)
+	p("GET /emergency-access", admins, s.getEmergencyAccess)
+	p("PUT /emergency-access", admins, s.setEmergencyAccess)
 
-	s.route("GET /api/users", leaders, s.listUsers)
-	// Vollständiges Profil (Adresse, Geburtsdatum) nur für Admins, die es bearbeiten
-	s.route("GET /api/users/{id}", admins, s.getUser)
-	s.route("PUT /api/users/{id}", admins, s.updateUser)
-	s.route("GET /api/users/{id}/emergency-contact", leaders, s.getEmergencyContact)
-	s.route("PUT /api/users/{id}/role", admins, s.setRole)
-	s.route("DELETE /api/users/{id}", admins, s.deleteUser)
+	// Teilnehmer: nur Mitglieder dieses Projekts. Mitarbeiter suchen hier zum manuellen Einchecken.
+	p("GET /members", leaders, s.listMembers)
+	p("PUT /members/{id}/role", admins, s.setMemberRole)
+	p("PUT /members/{id}/status", admins, s.setMemberStatus)
+	p("GET /members/{id}/emergency-contact", leaders, s.getEmergencyContact)
+	p("PUT /members/{id}/sanction", projectLeads, s.setSanction)
+	p("DELETE /members/{id}/sanction", projectLeads, s.removeSanction)
 
-	s.route("GET /api/locations", anyRole, s.listLocations)
-	s.route("POST /api/locations", admins, s.createLocation)
-	s.route("PUT /api/locations/{id}", admins, s.updateLocation)
+	p("GET /settings/sanctions", admins, s.getSanctionRules)
+	p("PUT /settings/sanctions", admins, s.setSanctionRules)
+	p("GET /shares", admins, s.listShares)
+	p("POST /shares/{partner}/consent", admins, s.consentShare)
+	p("POST /shares/{partner}/decline", admins, s.declineShare)
+	p("DELETE /shares/{partner}", admins, s.endShare)
 
-	s.route("GET /api/time-entries", projectLeads, s.listTimeEntries)
-	s.route("POST /api/time-entries", projectLeads, s.createTimeEntry)
-	s.route("DELETE /api/time-entries/{id}", projectLeads, s.deleteTimeEntry)
-	s.route("GET /api/time-entries/export.csv", admins, s.exportTimeEntries)
+	p("GET /locations", anyRole, s.listLocations)
+	p("POST /locations", admins, s.createLocation)
+	p("PUT /locations/{id}", admins, s.updateLocation)
+
+	p("GET /time-entries", projectLeads, s.listTimeEntries)
+	p("POST /time-entries", projectLeads, s.createTimeEntry)
+	p("DELETE /time-entries/{id}", projectLeads, s.deleteTimeEntry)
+	p("GET /time-entries/export.csv", admins, s.exportTimeEntries)
 
 	m.HandleFunc("/api/", func(w http.ResponseWriter, r *http.Request) {
 		writeError(w, errNotFound)
@@ -180,8 +214,37 @@ func (s *Server) routes() {
 
 type handlerFunc func(w http.ResponseWriter, r *http.Request, u *User) error
 
-// route registriert einen Handler, der einen angemeldeten Benutzer mit einer der Rollen verlangt.
-func (s *Server) route(pattern string, roles []string, h handlerFunc) {
+type memberHandler func(w http.ResponseWriter, r *http.Request, m *Member) error
+
+// route registriert einen Handler, der einen angemeldeten Benutzer verlangt (unabhängig vom Projekt).
+func (s *Server) route(pattern string, h handlerFunc) {
+	s.handle(pattern, false, h)
+}
+
+// adminRoute registriert einen Handler der globalen Administration (nur globale Admins).
+func (s *Server) adminRoute(pattern string, h handlerFunc) {
+	s.handle(pattern, true, h)
+}
+
+func (s *Server) handle(pattern string, globalAdmin bool, h handlerFunc) {
+	s.protectedRoutes = append(s.protectedRoutes, pattern)
+	s.mux.HandleFunc(pattern, func(w http.ResponseWriter, r *http.Request) {
+		u, err := s.sessionUser(r)
+		if err == nil && globalAdmin && !u.GlobalAdmin {
+			err = errForbidden
+		}
+		if err == nil {
+			err = h(w, r, u)
+		}
+		if err != nil {
+			writeError(w, err)
+		}
+	})
+}
+
+// projectRoute registriert einen Handler im Kontext eines Projekts ({project} im Pfad). Verlangt eine
+// Mitgliedschaft mit einer der Rollen (nil = alle). Globale Admins sind in jedem Projekt Admin.
+func (s *Server) projectRoute(pattern string, roles []string, h memberHandler) {
 	s.protectedRoutes = append(s.protectedRoutes, pattern)
 	s.mux.HandleFunc(pattern, func(w http.ResponseWriter, r *http.Request) {
 		u, err := s.sessionUser(r)
@@ -189,11 +252,14 @@ func (s *Server) route(pattern string, roles []string, h handlerFunc) {
 			writeError(w, err)
 			return
 		}
-		if roles != nil && !slices.Contains(roles, u.Role) {
-			writeError(w, errForbidden)
-			return
+		m, err := s.loadMember(r.Context(), r.PathValue("project"), u)
+		if err == nil && roles != nil && !slices.Contains(roles, m.Role) {
+			err = errForbidden
 		}
-		if err := h(w, r, u); err != nil {
+		if err == nil {
+			err = h(w, r, m)
+		}
+		if err != nil {
 			writeError(w, err)
 		}
 	})
@@ -283,7 +349,7 @@ func pathInt(r *http.Request, name string) (int, error) {
 	return n, nil
 }
 
-func isProjectLead(u *User) bool { return slices.Contains(projectLeads, u.Role) }
+func isProjectLead(m *Member) bool { return slices.Contains(projectLeads, m.Role) }
 
 type statusRecorder struct {
 	http.ResponseWriter

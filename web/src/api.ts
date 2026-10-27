@@ -1,17 +1,20 @@
+/** Rolle in einem Projekt. admin = Projekt-Admin */
 export type Role = 'admin' | 'projektleiter' | 'mitarbeiter' | 'teilnehmer'
 export type Gender = 'w' | 'm' | 'd'
 export type EmergencyRelation = 'vater' | 'mutter' | 'andere'
-export type UserStatus = 'schueler_aadorf' | 'gast_extern' | 'mitarbeiter'
+/** Herkunft im Projekt, gewählt beim Anmelden. schueler = Schüler/in aus der Region des Projekts */
+export type UserStatus = 'schueler' | 'gast_extern' | 'mitarbeiter'
+export type SanctionLevel = 'verwarnung' | 'sperre'
+export type BanAction = 'entsperren' | 'verwarnen'
 
+/** Person, unabhängig vom Projekt. Rolle und Status gehören zur Mitgliedschaft (Member). */
 export interface User {
   id: string
   email: string
-  role: Role
   firstName: string
   lastName: string
   birthDate: string
   gender: Gender | ''
-  status: UserStatus | ''
   street: string
   zip: string
   city: string
@@ -20,19 +23,141 @@ export interface User {
   emergencyRelation: EmergencyRelation | ''
   /** ohne Login erfasst, Email freiwillig */
   guest: boolean
-  /** darf Notfallkontakte anderer Benutzer einsehen (Rolle oder Funktion mit Zugriff, siehe Administration) */
-  emergencyAccess: boolean
+  /** verwaltet Projekte, Benutzer und das Audit-Protokoll, ist in jedem Projekt Admin */
+  globalAdmin: boolean
   profileComplete: boolean
 }
 
-export interface UserSummary {
+/** Projekt, bei dem der angemeldete Benutzer Mitglied ist (Projektauswahl) */
+export interface MemberProject {
+  slug: string
+  name: string
+  role: Role
+  /** wartet auf die Einwilligung eines Partnerprojekts */
+  pending: boolean
+}
+
+/** Angemeldeter Benutzer mit seinen Projekten (GET /me) */
+export interface Me extends User {
+  projects: MemberProject[]
+}
+
+export interface SanctionRules {
+  /** nach so vielen Tagen wird eine Sperre aufgehoben bzw. zur Verwarnung (banAction), null = ohne Frist */
+  banDays: number | null
+  banAction: BanAction
+  /** nach so vielen Tagen wird eine Verwarnung gelöscht, null = ohne Frist */
+  warningDays: number | null
+}
+
+export interface Project extends SanctionRules {
+  slug: string
+  name: string
+  region: string
+  description: string
+  hasLogo: boolean
+  pending: boolean
+}
+
+/** Angemeldeter Benutzer im Kontext eines Projekts (GET /p/{slug}/me) */
+export interface Member extends User {
+  project: Project
+  role: Role
+  status: UserStatus | ''
+  functionId: number | null
+  /** darf Notfallkontakte der Mitglieder einsehen (Rolle oder Funktion mit Zugriff, siehe Administration) */
+  emergencyAccess: boolean
+  /** echte Mitgliedschaft (globale Admins ohne Mitgliedschaft: false) */
+  isMember: boolean
+}
+
+/** Geltende Verwarnung oder Sperre, wie das aktuelle Projekt sie sieht */
+export interface Sanction {
+  level: SanctionLevel
+  reason: string
+  since: string
+  /** Ende der aktuellen Stufe, null = unbefristet */
+  until: string | null
+  projectName: string
+  /** im eigenen Projekt erfasst (änderbar), sonst von einem Partnerprojekt geteilt */
+  own: boolean
+}
+
+/** Mitglied in der Teilnehmerliste eines Projekts */
+export interface MemberSummary {
   id: string
   email: string
   role: Role
+  status: UserStatus | ''
   firstName: string
   lastName: string
   birthDate: string
   guest: boolean
+  joinedAt: string
+  sanctions: Sanction[]
+}
+
+export interface ProjectSearchResult {
+  slug: string
+  name: string
+  region: string
+  description: string
+  hasLogo: boolean
+  member: boolean
+}
+
+/** Öffentliche Angaben eines Projekts (Login über den Projekt-Link) */
+export interface PublicProject {
+  slug: string
+  name: string
+  region: string
+  hasLogo: boolean
+}
+
+/** Geteilte Verwarnungen und Sperren mit einem Partnerprojekt */
+export interface ProjectShare {
+  partnerSlug: string
+  partnerName: string
+  /** dieses Projekt hat angefragt, der Partner muss einwilligen */
+  outgoing: boolean
+  state: 'ausstehend' | 'eingewilligt' | 'abgelehnt'
+  consentedAt: string | null
+}
+
+export interface AdminProject {
+  slug: string
+  name: string
+  region: string
+  description: string
+  hasLogo: boolean
+  pending: boolean
+  memberCount: number
+  admins: string[]
+  shares: ProjectShare[]
+  createdAt: string
+}
+
+export interface AdminUser {
+  id: string
+  email: string
+  firstName: string
+  lastName: string
+  birthDate: string
+  guest: boolean
+  globalAdmin: boolean
+  projects: string[]
+}
+
+export interface AuditRecord {
+  id: number
+  at: string
+  actorId: string | null
+  actorName: string
+  projectName: string | null
+  action: string
+  targetId: string | null
+  targetName: string
+  details: Record<string, unknown>
 }
 
 export interface Location {
@@ -84,14 +209,20 @@ export interface Participant {
   guest: boolean
   registered: boolean
   checkedInAt: string | null
+  sanctions: Sanction[]
 }
 
 export interface CheckinResult {
   checkinId: number
   person: User
+  status: UserStatus | ''
   registered: boolean
   alreadyCheckedIn: boolean
-  checkedInAt: string
+  checkedInAt: string | null
+  /** geltende Verwarnungen und Sperren, als Meldung anzeigen */
+  sanctions: Sanction[]
+  /** gesperrt, nicht eingecheckt */
+  blocked: boolean
 }
 
 export interface Report {
@@ -123,7 +254,7 @@ export interface Func {
   salary: number | null
 }
 
-/** Rollen und Funktionen, die Notfallkontakte einsehen dürfen (Administration). Admins immer. */
+/** Rollen und Funktionen, die Notfallkontakte einsehen dürfen (Administration des Projekts). Admins immer. */
 export interface EmergencyAccess {
   roles: Role[]
   functionIds: number[]
@@ -199,12 +330,20 @@ async function request<T>(method: string, path: string, body?: unknown): Promise
   return data as T
 }
 
-export const api = {
-  get: <T>(path: string) => request<T>('GET', path),
-  post: <T>(path: string, body: unknown = {}) => request<T>('POST', path, body),
-  put: <T>(path: string, body: unknown) => request<T>('PUT', path, body),
-  del: <T = void>(path: string) => request<T>('DELETE', path),
+/** API mit Pfad-Präfix, z.B. "/p/aadorf" für die Routen eines Projekts */
+export function apiWithPrefix(prefix: string) {
+  return {
+    get: <T>(path: string) => request<T>('GET', prefix + path),
+    post: <T>(path: string, body: unknown = {}) => request<T>('POST', prefix + path, body),
+    put: <T>(path: string, body: unknown) => request<T>('PUT', prefix + path, body),
+    del: <T = void>(path: string) => request<T>('DELETE', prefix + path),
+  }
 }
+
+export type Api = ReturnType<typeof apiWithPrefix>
+
+/** Routen ohne Projekt (Person, Projekte suchen, globale Administration) */
+export const api = apiWithPrefix('')
 
 export function errorMessage(err: unknown): string {
   return err instanceof Error ? err.message : 'Unbekannter Fehler'

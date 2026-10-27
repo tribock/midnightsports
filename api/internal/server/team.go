@@ -40,8 +40,9 @@ type StaffEntry struct {
 
 // --- Funktionen (Administration) ---
 
-func (s *Server) listFunctions(w http.ResponseWriter, r *http.Request, u *User) error {
-	rows, err := s.db.Query(r.Context(), `SELECT id, name, salary::float8 FROM functions ORDER BY name`)
+func (s *Server) listFunctions(w http.ResponseWriter, r *http.Request, m *Member) error {
+	rows, err := s.db.Query(r.Context(),
+		`SELECT id, name, salary::float8 FROM functions WHERE project_id = $1 ORDER BY name`, m.Project.ID)
 	if err != nil {
 		return err
 	}
@@ -53,20 +54,20 @@ func (s *Server) listFunctions(w http.ResponseWriter, r *http.Request, u *User) 
 	return nil
 }
 
-func (s *Server) createFunction(w http.ResponseWriter, r *http.Request, u *User) error {
-	return s.saveFunction(w, r, 0)
+func (s *Server) createFunction(w http.ResponseWriter, r *http.Request, m *Member) error {
+	return s.saveFunction(w, r, m, 0)
 }
 
-func (s *Server) updateFunction(w http.ResponseWriter, r *http.Request, u *User) error {
+func (s *Server) updateFunction(w http.ResponseWriter, r *http.Request, m *Member) error {
 	id, err := pathInt(r, "id")
 	if err != nil {
 		return err
 	}
-	return s.saveFunction(w, r, id)
+	return s.saveFunction(w, r, m, id)
 }
 
-// saveFunction legt eine Funktion an (id = 0) oder aktualisiert sie.
-func (s *Server) saveFunction(w http.ResponseWriter, r *http.Request, id int) error {
+// saveFunction legt eine Funktion des Projekts an (id = 0) oder aktualisiert sie.
+func (s *Server) saveFunction(w http.ResponseWriter, r *http.Request, m *Member, id int) error {
 	var f Function
 	if err := decode(r, &f); err != nil {
 		return err
@@ -82,12 +83,12 @@ func (s *Server) saveFunction(w http.ResponseWriter, r *http.Request, id int) er
 	var err error
 	if id == 0 {
 		err = s.db.QueryRow(r.Context(),
-			`INSERT INTO functions (name, salary) VALUES ($1, $2) RETURNING id`,
-			f.Name, f.Salary).Scan(&f.ID)
+			`INSERT INTO functions (project_id, name, salary) VALUES ($1, $2, $3) RETURNING id`,
+			m.Project.ID, f.Name, f.Salary).Scan(&f.ID)
 	} else {
 		err = s.db.QueryRow(r.Context(),
-			`UPDATE functions SET name = $2, salary = $3 WHERE id = $1 RETURNING id`,
-			id, f.Name, f.Salary).Scan(&f.ID)
+			`UPDATE functions SET name = $3, salary = $4 WHERE id = $1 AND project_id = $2 RETURNING id`,
+			id, m.Project.ID, f.Name, f.Salary).Scan(&f.ID)
 	}
 	if isUniqueViolation(err) {
 		return errorf(http.StatusConflict, "Eine Funktion mit diesem Namen existiert bereits")
@@ -99,12 +100,12 @@ func (s *Server) saveFunction(w http.ResponseWriter, r *http.Request, id int) er
 	return nil
 }
 
-func (s *Server) deleteFunction(w http.ResponseWriter, r *http.Request, u *User) error {
+func (s *Server) deleteFunction(w http.ResponseWriter, r *http.Request, m *Member) error {
 	id, err := pathInt(r, "id")
 	if err != nil {
 		return err
 	}
-	err = s.execOne(r.Context(), `DELETE FROM functions WHERE id = $1`, id)
+	err = s.execOne(r.Context(), `DELETE FROM functions WHERE id = $1 AND project_id = $2`, id, m.Project.ID)
 	if isForeignKeyViolation(err) {
 		return errorf(http.StatusConflict, "Die Funktion ist in Events eingesetzt und kann nicht gelöscht werden")
 	}
@@ -116,14 +117,15 @@ func (s *Server) deleteFunction(w http.ResponseWriter, r *http.Request, u *User)
 
 // --- Team ---
 
-// listTeam liefert alle Projektleiter, Mitarbeiter und Admins mit ihrer Funktion.
-func (s *Server) listTeam(w http.ResponseWriter, r *http.Request, u *User) error {
+// listTeam liefert die Projektleiter, Mitarbeiter und Admins des Projekts mit ihrer Funktion.
+func (s *Server) listTeam(w http.ResponseWriter, r *http.Request, m *Member) error {
 	rows, err := s.db.Query(r.Context(),
-		`SELECT u.id::text, COALESCE(u.email, ''), u.role, trim(u.first_name || ' ' || u.last_name), f.id, f.name
-		 FROM users u
-		 LEFT JOIN functions f ON f.id = u.function_id
-		 WHERE u.role IN ('projektleiter', 'mitarbeiter', 'admin')
-		 ORDER BY u.last_name, u.first_name, u.email`)
+		`SELECT u.id::text, COALESCE(u.email, ''), pm.role, trim(u.first_name || ' ' || u.last_name), f.id, f.name
+		 FROM project_members pm
+		 JOIN users u ON u.id = pm.user_id
+		 LEFT JOIN functions f ON f.id = pm.function_id
+		 WHERE pm.project_id = $1 AND pm.role IN ('projektleiter', 'mitarbeiter', 'admin')
+		 ORDER BY u.last_name, u.first_name, u.email`, m.Project.ID)
 	if err != nil {
 		return err
 	}
@@ -135,28 +137,44 @@ func (s *Server) listTeam(w http.ResponseWriter, r *http.Request, u *User) error
 	return nil
 }
 
-// setMemberFunction legt die Funktion einer Person im Team fest (null = keine).
-func (s *Server) setMemberFunction(w http.ResponseWriter, r *http.Request, u *User) error {
+// setMemberFunction legt die Funktion einer Person im Team fest (null = keine). Die Funktion bestimmt den Lohn,
+// deshalb wird die Änderung protokolliert.
+func (s *Server) setMemberFunction(w http.ResponseWriter, r *http.Request, m *Member) error {
 	var req struct {
 		FunctionID *int `json:"functionId"`
 	}
 	if err := decode(r, &req); err != nil {
 		return err
 	}
-	id, err := pathUUID(r, "id")
+	target, err := s.projectMemberUser(r, m)
 	if err != nil {
 		return err
 	}
-	err = s.execOne(r.Context(),
-		`UPDATE users SET function_id = $2
-		 WHERE id = $1 AND role IN ('projektleiter', 'mitarbeiter', 'admin')`,
-		id, req.FunctionID)
+	ctx := r.Context()
+	tx, err := s.db.Begin(ctx)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback(ctx)
+	var name *string
+	err = tx.QueryRow(ctx,
+		`UPDATE project_members pm SET function_id = $3
+		 WHERE pm.project_id = $1 AND pm.user_id = $2 AND pm.role IN ('projektleiter', 'mitarbeiter', 'admin')
+		 RETURNING (SELECT f.name FROM functions f WHERE f.id = $3)`,
+		m.Project.ID, target.ID, req.FunctionID).Scan(&name)
 	switch {
 	case isForeignKeyViolation(err):
 		return errorf(http.StatusBadRequest, "Unbekannte Funktion")
-	case errors.Is(err, errNotFound):
+	case errors.Is(err, pgx.ErrNoRows):
 		return errorf(http.StatusNotFound, "Person ist nicht im Team")
 	case err != nil:
+		return err
+	}
+	if err := s.audit(ctx, tx, auditEntry{Actor: m.User, ProjectID: &m.Project.ID, Action: actionFunctionChanged,
+		Target: target, Details: map[string]any{"funktion": name}}); err != nil {
+		return err
+	}
+	if err := tx.Commit(ctx); err != nil {
 		return err
 	}
 	return noContent(w)
@@ -165,8 +183,8 @@ func (s *Server) setMemberFunction(w http.ResponseWriter, r *http.Request, u *Us
 // --- Einsatz am Event ---
 
 // listStaff liefert das Team eines Events. Den Lohn sehen nur Projektleiter und Admins.
-func (s *Server) listStaff(w http.ResponseWriter, r *http.Request, u *User) error {
-	eventID, err := pathInt(r, "id")
+func (s *Server) listStaff(w http.ResponseWriter, r *http.Request, m *Member) error {
+	eventID, err := s.projectEvent(r, m)
 	if err != nil {
 		return err
 	}
@@ -185,7 +203,7 @@ func (s *Server) listStaff(w http.ResponseWriter, r *http.Request, u *User) erro
 	if err != nil {
 		return err
 	}
-	if !isProjectLead(u) {
+	if !isProjectLead(m) {
 		for i := range staff {
 			staff[i].Salary = nil
 		}
@@ -210,7 +228,7 @@ type staffSnapshot struct {
 // und werden gespeichert. Wer mit derselben Funktion eingeteilt bleibt, behält seinen bisherigen Betrag,
 // damit spätere Lohnänderungen vergangene Events nicht verändern, und eine bereits erfasste Unterschrift (Auszahlung).
 // Funktionen ohne festen Lohn werden über die Zeiterfassung abgerechnet und erhalten keinen Betrag.
-func saveStaff(ctx context.Context, tx pgx.Tx, eventID int, staff []staffInput) error {
+func saveStaff(ctx context.Context, tx pgx.Tx, projectID, eventID int, staff []staffInput) error {
 	// Bisherige Einträge merken: wer mit derselben Funktion eingeteilt bleibt, behält Betrag und Unterschrift
 	existing, err := loadStaffSnapshots(ctx, tx, eventID)
 	if err != nil {
@@ -230,7 +248,7 @@ func saveStaff(ctx context.Context, tx pgx.Tx, eventID int, staff []staffInput) 
 			ids = append(ids, id)
 		}
 	}
-	members, err := loadTeamMembers(ctx, tx, ids)
+	members, err := loadTeamMembers(ctx, tx, projectID, ids)
 	if err != nil {
 		return err
 	}
@@ -259,12 +277,15 @@ type teamMember struct {
 	salary     *float64
 }
 
-// loadTeamMembers lädt Funktion und Lohn der gewählten Personen in einer Abfrage. Nur Personen im Team.
-func loadTeamMembers(ctx context.Context, tx pgx.Tx, ids []string) (map[string]teamMember, error) {
+// loadTeamMembers lädt Funktion und Lohn der gewählten Personen in einer Abfrage. Nur Personen im Team des Projekts.
+func loadTeamMembers(ctx context.Context, tx pgx.Tx, projectID int, ids []string) (map[string]teamMember, error) {
 	rows, err := tx.Query(ctx,
-		`SELECT u.id::text, trim(u.first_name || ' ' || u.last_name), u.function_id, f.salary::float8
-		 FROM users u LEFT JOIN functions f ON f.id = u.function_id
-		 WHERE u.id = ANY($1::uuid[]) AND u.role IN ('projektleiter', 'mitarbeiter', 'admin')`, ids)
+		`SELECT u.id::text, trim(u.first_name || ' ' || u.last_name), pm.function_id, f.salary::float8
+		 FROM project_members pm
+		 JOIN users u ON u.id = pm.user_id
+		 LEFT JOIN functions f ON f.id = pm.function_id
+		 WHERE pm.project_id = $1 AND u.id = ANY($2::uuid[]) AND pm.role IN ('projektleiter', 'mitarbeiter', 'admin')`,
+		projectID, ids)
 	if err != nil {
 		return nil, err
 	}
