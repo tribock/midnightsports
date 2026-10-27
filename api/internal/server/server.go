@@ -139,6 +139,8 @@ func (s *Server) routes() {
 
 	s.route("GET /api/events/{id}/staff", leaders, s.listStaff)
 	s.route("GET /api/events/{id}/payout", projectLeads, s.listPayout)
+	s.route("PUT /api/events/{id}/payout/close", projectLeads, s.closePayout)
+	s.route("DELETE /api/events/{id}/payout/close", projectLeads, s.reopenPayout)
 	s.route("PUT /api/events/{id}/payout/{userId}", projectLeads, s.signPayout)
 	s.route("DELETE /api/events/{id}/payout/{userId}", projectLeads, s.unsignPayout)
 

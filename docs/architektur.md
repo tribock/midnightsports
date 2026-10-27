@@ -58,7 +58,7 @@ flowchart LR
         PL(["👤 Projektleiter<br/>+ alles von Mitarbeiter"])
         P0([Events erstellen, bearbeiten, absagen])
         P1([Team einteilen])
-        P2([Auszahlung mit Unterschrift, Spesenblatt drucken])
+        P2([Auszahlung mit Unterschrift, abschliessen, Spesenblatt drucken])
         P3([Bericht schreiben und drucken])
         P4([Zeiterfassung])
         P5([Notfallkontakte einsehen ¹])
@@ -149,6 +149,9 @@ erDiagram
         uuid leader_id FK
         bool cancelled
         uuid created_by FK
+        bytea payout_signature "PNG, Abschluss durch PL"
+        timestamptz payout_closed_at
+        uuid payout_closed_by FK
     }
     event_staff {
         int event_id PK, FK
@@ -190,6 +193,7 @@ erDiagram
 - **Gäste** sind normale Benutzer mit `guest = true`. Meldet sich jemand mit derselben Email über Google an, übernimmt er das Konto.
 - **Gelöschte Konten**: Check-ins bleiben mit `user_id = NULL` für die Statistik erhalten, alles andere wird gelöscht.
 - **Einsatz** (`event_staff`): Funktion und Betrag werden beim Einteilen kopiert, damit spätere Lohnänderungen vergangene Events nicht verändern. Die Unterschrift der Auszahlung gehört zur selben Zeile.
+- **Abschluss der Auszahlung** (`events.payout_*`): die Projektleitung unterschreibt, danach lehnt der Server Änderungen an den Unterschriften im Team ab (409), bis der Abschluss aufgehoben wird.
 - **Admins** haben immer Zugriff auf Notfallkontakte und stehen deshalb nicht in `emergency_access_roles`.
 
 ## Abläufe
@@ -285,6 +289,11 @@ sequenceDiagram
     else
         S-->>B: 204
     end
+    PL->>B: "Abschliessen": Zusammenfassung, Warnung bei fehlenden Unterschriften
+    PL->>B: unterschreibt als Projektleitung
+    B->>S: PUT /api/events/{id}/payout/close {PNG}
+    S->>DB: UPDATE events … WHERE payout_closed_at IS NULL
+    S-->>B: 204, Unterschriften im Team gesperrt
     PL->>B: "Drucken"
     B->>PL: Spesenblatt (Druckansicht, als PDF speicherbar)
 ```
