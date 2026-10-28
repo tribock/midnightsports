@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState, type FormEvent } from 'react'
+import { Fragment, useCallback, useEffect, useState, type FormEvent } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import {
   errorMessage,
@@ -15,7 +15,8 @@ import { age, formatAddress, formatCHF, formatDate, formatTime, personName, stat
 import EventInfo from '../components/EventInfo'
 import PrintSheet, { printDocument } from '../components/PrintSheet'
 import ProfileFields, { emptyProfile, type ProfileData } from '../components/ProfileFields'
-import { SanctionBadge, SanctionNotice } from '../components/Sanctions'
+import { WarningIcon } from '../components/Icons'
+import { SanctionBadge, SanctionForm, SanctionNotice } from '../components/Sanctions'
 import StatusSelect from '../components/StatusSelect'
 import { useProject } from '../project'
 import { EventCard } from './EventsPage'
@@ -131,8 +132,11 @@ function Staff({ staff, error }: { staff: StaffEntry[]; error: string }) {
 }
 
 function Participants({ eventId, disabled }: { eventId: number; disabled: boolean }) {
-  const { api, project } = useProject()
+  const { api, project, member } = useProject()
+  const canSanction = isProjectLead(member)
   const [list, setList] = useState<Participant[]>([])
+  // Teilnehmer, dessen Formular zum Verwarnen offen ist
+  const [sanctioning, setSanctioning] = useState<string | null>(null)
   const [error, setError] = useState('')
   // Ergebnis des letzten Check-ins aus der Liste, mit Meldung bei Verwarnung oder Sperre
   const [last, setLast] = useState<CheckinResult | null>(null)
@@ -173,29 +177,55 @@ function Participants({ eventId, disabled }: { eventId: number; disabled: boolea
       {list.length === 0 && <p className="muted">Noch keine Anmeldungen.</p>}
       <ul className="list">
         {list.map((p) => (
-          <li key={`${p.userId ?? ''}-${p.checkinId ?? ''}`}>
-            <span className={p.checkedInAt ? 'dot success' : 'dot'} />
-            <span className="grow">
-              {p.name}
-              {p.birthDate && <span className="muted"> · {age(p.birthDate)} J.</span>}
-              {p.status && <span className="muted small"> · {statusLabels(project.region)[p.status]}</span>}
-              {p.guest && <span className="badge">Gast</span>}
-              <SanctionBadge sanctions={p.sanctions} />
-              {!p.registered && !p.guest && <span className="badge">nicht angemeldet</span>}
-            </span>
-            {p.checkedInAt ? (
-              <button className="link small" onClick={() => undo(p)}>
-                {formatTime(p.checkedInAt)} ✕
-              </button>
-            ) : (
-              !disabled &&
-              p.userId && (
-                <button className="small" onClick={() => checkIn(p.userId!)}>
-                  Einchecken
+          <Fragment key={`${p.userId ?? ''}-${p.checkinId ?? ''}`}>
+            <li>
+              <span className={p.checkedInAt ? 'dot success' : 'dot'} />
+              <span className="grow">
+                {p.name}
+                {p.birthDate && <span className="muted"> · {age(p.birthDate)} J.</span>}
+                {p.status && <span className="muted small"> · {statusLabels(project.region)[p.status]}</span>}
+                {p.guest && <span className="badge">Gast</span>}
+                <SanctionBadge sanctions={p.sanctions} />
+                {!p.registered && !p.guest && <span className="badge">nicht angemeldet</span>}
+              </span>
+              {p.checkedInAt ? (
+                <button className="link small" onClick={() => undo(p)}>
+                  {formatTime(p.checkedInAt)} ✕
                 </button>
-              )
+              ) : (
+                !disabled &&
+                p.userId && (
+                  <button className="small" onClick={() => checkIn(p.userId!)}>
+                    Einchecken
+                  </button>
+                )
+              )}
+              {canSanction && p.userId && (
+                <button
+                  className={sanctioning === p.userId ? 'icon-button active' : 'icon-button'}
+                  aria-label={`${p.name} verwarnen oder sperren`}
+                  title={`${p.name} verwarnen oder sperren`}
+                  aria-expanded={sanctioning === p.userId}
+                  onClick={() => setSanctioning(sanctioning === p.userId ? null : p.userId)}
+                >
+                  <WarningIcon />
+                </button>
+              )}
+            </li>
+            {sanctioning && sanctioning === p.userId && (
+              <li className="editing">
+                <SanctionForm
+                  userId={p.userId}
+                  name={p.name}
+                  sanctions={p.sanctions}
+                  onSaved={() => {
+                    setSanctioning(null)
+                    load()
+                  }}
+                />
+              </li>
             )}
-          </li>
+          </Fragment>
         ))}
       </ul>
       {!disabled && <ManualCheckin eventId={eventId} onDone={load} />}
@@ -325,7 +355,8 @@ function GuestForm({
     <form className="stack" onSubmit={submit}>
       <strong>Neuer Gast</strong>
       <p className="muted small">
-        Der Gast wird als Mitglied des Projekts gespeichert und kann an späteren Events über die Suche eingecheckt werden.
+        Der Gast wird als Mitglied des Projekts gespeichert und kann an späteren Events über die Suche eingecheckt
+        werden.
       </p>
       <ProfileFields value={form} onChange={setForm} email="optional" />
       <StatusSelect value={status} onChange={setStatus} region={project.region} canSetStaff={isAdmin(member)} />
@@ -401,7 +432,17 @@ function ReportEditor({ event, staff }: { event: Event; staff: StaffEntry[] }) {
 }
 
 /** Bericht zum Drucken bzw. als PDF. Gedruckt wird der aktuelle Text im Eingabefeld. */
-function ReportSheet({ event, report, staff, body }: { event: Event; report: Report; staff: StaffEntry[]; body: string }) {
+function ReportSheet({
+  event,
+  report,
+  staff,
+  body,
+}: {
+  event: Event
+  report: Report
+  staff: StaffEntry[]
+  body: string
+}) {
   const a = report.attendance
   const address = formatAddress(event.location)
   return (

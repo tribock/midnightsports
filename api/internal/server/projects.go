@@ -162,20 +162,31 @@ func (s *Server) activeProject(ctx context.Context, slug string) (*Project, erro
 }
 
 // projectLogo liefert das hochgeladene Logo (öffentlich, auch für Login-Seite und Druck). Ohne Logo: 404,
-// das Frontend zeigt dann das Standardlogo.
+// das Frontend zeigt dann das Standardlogo. Logos nicht freigegebener Projekte nur für globale Admins.
 func (s *Server) projectLogo(w http.ResponseWriter, r *http.Request) {
 	slug := r.PathValue("project")
 	var logo []byte
 	var contentType string
+	var pending bool
 	err := s.db.QueryRow(r.Context(),
-		`SELECT logo, logo_type FROM projects WHERE slug = $1 AND logo IS NOT NULL`, slug).Scan(&logo, &contentType)
+		`SELECT p.logo, p.logo_type, `+projectPending+` FROM projects p WHERE p.slug = $1 AND p.logo IS NOT NULL`,
+		slug).Scan(&logo, &contentType, &pending)
+	if err == nil && pending {
+		if u, uerr := s.sessionUser(r); uerr != nil || !u.GlobalAdmin {
+			err = errNotFound
+		}
+	}
 	if err != nil {
 		writeError(w, err)
 		return
 	}
 	w.Header().Set("Content-Type", contentType)
-	// Kurz cachen: ein neues Logo soll bald sichtbar sein
-	w.Header().Set("Cache-Control", "public, max-age=300")
+	// Kurz cachen: ein neues Logo soll bald sichtbar sein. Nicht freigegebene nie in gemeinsamen Caches
+	if pending {
+		w.Header().Set("Cache-Control", "private, no-store")
+	} else {
+		w.Header().Set("Cache-Control", "public, max-age=300")
+	}
 	w.Write(logo)
 }
 

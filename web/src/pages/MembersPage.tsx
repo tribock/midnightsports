@@ -1,15 +1,8 @@
-import { Fragment, useCallback, useEffect, useState, type FormEvent, type ReactNode } from 'react'
-import {
-  errorMessage,
-  type EmergencyContact,
-  type MemberSummary,
-  type Role,
-  type SanctionLevel,
-  type UserStatus,
-} from '../api'
+import { Fragment, useCallback, useEffect, useState, type ReactNode } from 'react'
+import { errorMessage, type EmergencyContact, type MemberSummary, type Role, type UserStatus } from '../api'
 import { isAdmin, isProjectLead } from '../auth'
-import { PenIcon, PhoneIcon } from '../components/Icons'
-import { SanctionBadge, SanctionNotice } from '../components/Sanctions'
+import { PhoneIcon, WarningIcon } from '../components/Icons'
+import { SanctionBadge, SanctionForm } from '../components/Sanctions'
 import StatusSelect from '../components/StatusSelect'
 import { personName, relationLabels, roleLabels, statusLabels } from '../format'
 import { useProject } from '../project'
@@ -154,7 +147,7 @@ export default function MembersPage() {
                           active={open === 'sanction'}
                           onClick={() => togglePanel(m.id, 'sanction')}
                         >
-                          <PenIcon />
+                          <WarningIcon />
                         </IconButton>
                       )}
                     </td>
@@ -165,8 +158,10 @@ export default function MembersPage() {
                         {open === 'emergency' ? (
                           <EmergencyContactPanel userId={m.id} />
                         ) : (
-                          <SanctionPanel
-                            member={m}
+                          <SanctionForm
+                            userId={m.id}
+                            name={personName(m)}
+                            sanctions={m.sanctions}
                             onSaved={() => {
                               setPanel(null)
                               reload()
@@ -232,77 +227,5 @@ function EmergencyContactPanel({ userId }: { userId: string }) {
       {contact.relation && <span className="muted"> ({relationLabels[contact.relation]})</span>} ·{' '}
       <a href={`tel:${contact.phone}`}>{contact.phone}</a>
     </p>
-  )
-}
-
-/**
- * Verwarnen oder sperren (Projektleiter und Admins). Eine neue Verwarnung oder Sperre ersetzt die bisherige
- * dieses Projekts, die Frist beginnt neu. Geteilte Einträge anderer Projekte sind nur sichtbar.
- */
-function SanctionPanel({ member: m, onSaved }: { member: MemberSummary; onSaved: () => void }) {
-  const { api } = useProject()
-  const own = m.sanctions.find((s) => s.own)
-  const [level, setLevel] = useState<SanctionLevel>(own?.level ?? 'verwarnung')
-  const [reason, setReason] = useState(own?.reason ?? '')
-  const [error, setError] = useState('')
-
-  async function submit(e: FormEvent) {
-    e.preventDefault()
-    setError('')
-    try {
-      await api.put(`/members/${m.id}/sanction`, { level, reason })
-      onSaved()
-    } catch (err) {
-      setError(errorMessage(err))
-    }
-  }
-
-  async function remove() {
-    if (!confirm(`Verwarnung bzw. Sperre von ${personName(m)} aufheben?`)) return
-    try {
-      await api.del(`/members/${m.id}/sanction`)
-      onSaved()
-    } catch (err) {
-      setError(errorMessage(err))
-    }
-  }
-
-  return (
-    <form className="stack" onSubmit={submit}>
-      <SanctionNotice sanctions={m.sanctions} />
-      <div className="row">
-        <label>
-          Massnahme
-          <select value={level} onChange={(e) => setLevel(e.target.value as SanctionLevel)}>
-            <option value="verwarnung">Verwarnen (Check-in mit Meldung)</option>
-            <option value="sperre">Sperren (kein Check-in, keine Anmeldung)</option>
-          </select>
-        </label>
-        <label className="grow">
-          Grund
-          <input
-            required
-            value={reason}
-            onChange={(e) => setReason(e.target.value)}
-            placeholder="z.B. Regeln missachtet"
-          />
-        </label>
-      </div>
-      <p className="muted small">
-        Wird beim Einchecken angezeigt. Fristen legt der Projekt-Admin unter Administration fest.
-      </p>
-      {error && <p className="error">{error}</p>}
-      <div className="actions">
-        {own && (
-          <button type="button" className="danger" onClick={remove}>
-            Aufheben
-          </button>
-        )}
-        <span className="grow" />
-        <button type="submit" className="primary">
-          {own ? 'Ersetzen' : 'Speichern'}
-        </button>
-      </div>
-    </form>
   )
 }

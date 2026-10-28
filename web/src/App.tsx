@@ -245,8 +245,9 @@ function ProjectSwitcher() {
     >
       <option value="">Übersicht</option>
       {user.projects.map((p) => (
-        <option key={p.slug} value={p.slug}>
+        <option key={p.slug} value={p.slug} disabled={p.pending && !user.globalAdmin}>
           {p.name}
+          {p.pending ? ' (nicht freigegeben)' : ''}
         </option>
       ))}
       {ctx && !own && <option value={current}>{ctx.project.name}</option>}

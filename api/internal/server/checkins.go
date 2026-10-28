@@ -118,7 +118,9 @@ func (s *Server) createGuest(w http.ResponseWriter, r *http.Request, m *Member) 
 		email, p.FirstName, p.LastName, birth, string(p.Gender), p.Street, p.Zip, p.City,
 		p.EmergencyName, p.EmergencyPhone, string(p.EmergencyRelation)))
 	if isUniqueViolation(err) {
-		return errorf(http.StatusConflict, "Es gibt bereits einen Benutzer mit dieser Email, bitte über die Suche einchecken")
+		// Nicht verraten, ob und wo die Email verwendet wird
+		return errorf(http.StatusConflict,
+			"Diese Email kann nicht verwendet werden. Gast ohne Email erfassen oder die Person meldet sich selbst beim Projekt an")
 	}
 	if err != nil {
 		return err
@@ -159,21 +161,20 @@ func (s *Server) requireOpenEvent(ctx context.Context, eventID int) error {
 // geliefert. Verwarnte Personen werden eingecheckt, gesperrte nicht. Beides wird mitgeliefert und angezeigt.
 func (s *Server) checkInUser(ctx context.Context, m *Member, eventID int, userID string) (*checkinResult, error) {
 	res := &checkinResult{Sanctions: []Sanction{}}
-	var err error
-	res.Person, err = s.loadUser(ctx, userID)
-	if errors.Is(err, pgx.ErrNoRows) {
+	// Zuerst die Mitgliedschaft: Personen anderer Projekte werden nicht geladen, auch nicht ihr Name
+	if !validUUID(userID) {
 		return nil, errorf(http.StatusNotFound, "Teilnehmer nicht gefunden")
+	}
+	err := s.db.QueryRow(ctx, `SELECT status FROM project_members WHERE project_id = $1 AND user_id = $2`,
+		m.Project.ID, userID).Scan(&res.Status)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil, errorf(http.StatusConflict,
+			"Diese Person ist nicht für dieses Projekt angemeldet (über die Startseite oder den Projekt-Link anmelden)")
 	}
 	if err != nil {
 		return nil, err
 	}
-	err = s.db.QueryRow(ctx, `SELECT status FROM project_members WHERE project_id = $1 AND user_id = $2`,
-		m.Project.ID, userID).Scan(&res.Status)
-	if errors.Is(err, pgx.ErrNoRows) {
-		return nil, errorf(http.StatusConflict,
-			res.Person.Name()+" ist nicht für dieses Projekt angemeldet (über die Startseite oder den Projekt-Link anmelden)")
-	}
-	if err != nil {
+	if res.Person, err = s.loadUser(ctx, userID); err != nil {
 		return nil, err
 	}
 	if res.Sanctions, err = s.loadSanctionsFor(ctx, m.Project.ID, userID); err != nil {

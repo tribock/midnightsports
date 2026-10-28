@@ -19,11 +19,13 @@ function lastProject(): string | null {
 export default function HomePage() {
   const { user } = useAuth()
   const navigate = useNavigate()
-  const projects = user!.projects
+  // Nicht freigegebene Projekte öffnen nur globale Admins, alle anderen sehen nur einen Hinweis
+  const projects = user!.projects.filter((p) => !p.pending || user!.globalAdmin)
+  const waiting = user!.projects.filter((p) => p.pending && !user!.globalAdmin)
   const preferred = projects.find((p) => p.slug === lastProject()) ?? projects[0]
   const [slug, setSlug] = useState(preferred?.slug ?? '')
 
-  if (projects.length === 0 && !user!.globalAdmin) return <Navigate to="/projekte" replace />
+  if (projects.length === 0 && waiting.length === 0 && !user!.globalAdmin) return <Navigate to="/projekte" replace />
 
   return (
     <div className="narrow stack">
@@ -53,6 +55,12 @@ export default function HomePage() {
         </form>
       ) : (
         <p className="muted">Du bist noch bei keinem Projekt angemeldet.</p>
+      )}
+      {waiting.length > 0 && (
+        <p className="muted small">
+          Noch nicht freigegeben: {waiting.map((p) => p.name).join(', ')}. Das Projekt wartet auf die Einwilligung eines
+          Partnerprojekts.
+        </p>
       )}
       <Link to="/projekte" className="button">
         Nach Projekten suchen

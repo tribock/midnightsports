@@ -1,95 +1,39 @@
 # Lokale Entwicklung
 
-## Voraussetzungen
+Voraussetzungen: Go, Node.js (LTS), Docker Desktop, make.
 
-- Go (aktuelle Version)
-- Node.js (LTS) und npm
-- Docker Desktop (inkl. Docker Compose)
-- make
+## Einrichten und starten
 
-## Einrichtung
-
-1. Repository klonen
-2. Konfiguration anlegen:
-
-   ```sh
-   cp .env.example .env
-   ```
-
-3. Werte in `.env` ergänzen (siehe [Zugangsdaten](zugangsdaten.md))
-   - Ohne Google OAuth: `DEV_LOGIN=true` setzen (siehe unten)
-
-## Starten
-
-Es gibt zwei Varianten:
-
-| Befehl | Zweck | URL |
-|---|---|---|
-| `make run` | Ganze App in Docker (wie in Produktion) | http://localhost:8080 |
-| `make dev` | Entwicklung mit Hot Reload | http://localhost:5173 |
-
-### `make run`
-
-- Startet App und PostgreSQL via Docker Compose
-- Baut das Image bei jedem Start neu
-- Stoppen: `Ctrl+C`, danach `make down`
-
-### `make dev`
-
-- Startet PostgreSQL in Docker
-- Startet das Backend mit `go run` auf Port 8080
-- Startet das Frontend mit Vite auf Port 5173
-- Vite leitet Anfragen an `/api` an das Backend weiter
-- Änderungen im Frontend sind sofort sichtbar, das Backend muss bei Änderungen neu gestartet werden
-
-## Weitere Befehle
+```sh
+cp .env.example .env    # Werte ergänzen, siehe zugangsdaten.md. Ohne Google: DEV_LOGIN=true
+make dev                # PostgreSQL in Docker, Backend :8080, Frontend mit Hot Reload :5173
+make run                # ganze App in Docker wie in Produktion, :8080
+```
 
 | Befehl | Beschreibung |
 |---|---|
 | `make db` | Nur PostgreSQL starten |
-| `make down` | Alle Container stoppen |
-| `make db-reset` | Lokale Datenbank löschen und neu anlegen (alle Daten gehen verloren). Nur lokal, nie in Produktion |
-| `make test` | Tests für Backend und Frontend ausführen |
-| `make version` | Aktuelle Version aus Git anzeigen |
-| `make build` | Docker-Image bauen und auf Docker Hub pushen (Tag = Version) |
-| `make deploy-demo` | Demo auf Cloud Run deployen (siehe [Demo-Deployment](deployment-demo.md)) |
+| `make down` | Container stoppen |
+| `make db-reset` | Datenbank des aktuellen Branches löschen und neu anlegen (nur lokal) |
+| `make psql` | Mit der Datenbank des aktuellen Branches verbinden |
+| `make containers` | Container und Volumes aller Branches anzeigen |
+| `make test` | Tests für Backend und Frontend |
 
 ## Datenbank
 
-- Lokal wird kein Cloud SQL und kein Google-Konto benötigt
-- Cloud SQL ist ein verwaltetes PostgreSQL, lokal läuft dieselbe Version (PostgreSQL 17) in Docker
-- Die App unterscheidet nur über `DATABASE_URL`, der Code ist identisch
-- Läuft im Container `postgres` auf `localhost:5432`
-- Benutzer, Passwort und Datenbank: `midnightsports`
-- Daten bleiben in einem Docker-Volume erhalten
-- Migrationen und Startdaten (Projekt Aadorf mit Funktionen und Orten) laufen automatisch beim Start des Backends
-- Branch `feat/multitenancy`: neues Schema, eine bestehende lokale Datenbank einmal mit `make db-reset` neu anlegen
-  (das Backend startet sonst mit dem Hinweis auf unbekannte bzw. geänderte Migrationen nicht korrekt)
-- Zugriff mit psql:
-
-  ```sh
-  docker compose exec postgres psql -U midnightsports
-  ```
+- PostgreSQL 17 in Docker auf `localhost:5432`, Benutzer, Passwort und Datenbank `midnightsports`
+- Migrationen und Startdaten (Projekt Aadorf) laufen beim Start des Backends
+- **Pro Branch ein eigenes Volume**: Compose-Projekt `midnightsports` auf `main`, sonst `midnightsports-<branch>`.
+  Testdaten bleiben beim Branch-Wechsel erhalten. Vorher `make down`, alle nutzen dieselben Ports
+- Nur über `make` wird der Branch-Name verwendet. Alten Branch entfernen: `docker compose -p midnightsports-<branch> down -v`
 
 ## Login ohne Google (`DEV_LOGIN`)
 
-- Mit `DEV_LOGIN=true` zeigt die Login-Seite ein Feld für eine beliebige Email-Adresse
-- Damit lassen sich mehrere Benutzer (Teilnehmer, Projektleiter) einfach testen
-- Die Emails aus `ADMIN_EMAIL` (komma-getrennt) sind globale Admins: Projekte erfassen, Benutzer, Audit
-- Midnightsports Aadorf ist als erstes Projekt angelegt. Zum Testen: mit einer zweiten Email anmelden, bei Aadorf
-  anmelden und als globaler Admin unter Teilnehmer eine Rolle vergeben, oder unter Alle Projekte ein Projekt erfassen
-- Nur lokal verwenden, nie in Produktion setzen
-- Das Backend verweigert den Start, wenn `DEV_LOGIN=true` und keine localhost-URL konfiguriert ist
+- Login mit beliebiger Email, nur lokal (startet nur mit localhost-URL)
+- Emails aus `ADMIN_EMAIL` sind globale Admins
+- Testen: mit einer zweiten Email anmelden, bei Aadorf beitreten, als globaler Admin unter Teilnehmer eine Rolle vergeben
 
-## QR-Scanner testen
+## QR-Scanner
 
-- Der Browser erlaubt Kamerazugriff nur über HTTPS oder `localhost`
-- Am Laptop: Webcam über http://localhost:5173 verwenden
-- QR-Code des Teilnehmers in einem zweiten Browserfenster (anderer Benutzer) anzeigen
-- Test mit dem Handy: HTTPS-Tunnel verwenden, z.B.
-
-  ```sh
-  cloudflared tunnel --url http://localhost:8080
-  ```
-
-  Die Tunnel-URL muss als Weiterleitungs-URI im OAuth Client eingetragen werden (oder `DEV_LOGIN` verwenden).
+Kamera nur über HTTPS oder `localhost`. Am Laptop die Webcam über http://localhost:5173 verwenden, mit dem Handy
+einen Tunnel (`cloudflared tunnel --url http://localhost:8080`) und `DEV_LOGIN` oder die Tunnel-URL im OAuth Client.

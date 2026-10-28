@@ -12,11 +12,19 @@ export VERSION BUILD_DATE
 
 IMAGE ?= docker.io/tribock/midnightsports
 
+# Lokale Container pro Branch: Compose-Projekt (Container, Datenbank-Volume, Netzwerk) heisst auf main
+# "midnightsports", auf anderen Branches z.B. "midnightsports-feat-multitenancy". So bleiben die Testdaten
+# jedes Branches beim Wechseln erhalten. Mit COMPOSE_PROJECT_NAME=... überschreibbar.
+BRANCH := $(shell git rev-parse --abbrev-ref HEAD 2>/dev/null)
+BRANCH_SUFFIX := $(if $(filter-out main HEAD,$(BRANCH)),-$(shell printf '%s' '$(BRANCH)' | tr 'A-Z' 'a-z' | tr -c 'a-z0-9' '-'))
+COMPOSE_PROJECT_NAME ?= midnightsports$(BRANCH_SUFFIX)
+export COMPOSE_PROJECT_NAME
+
 # Google Cloud (Demo und Produktion), können in .env überschrieben werden
 GCP_PROJECT_ID ?= midnightsports
 GCP_REGION ?= europe-west6
 
-.PHONY: run down db db-reset dev test build version demo-yaml deploy-demo deploy-yaml deploy instances logos
+.PHONY: run down db db-reset psql containers dev test build version demo-yaml deploy-demo deploy-yaml deploy instances logos
 
 ## run: App und PostgreSQL in Docker starten (http://localhost:8080)
 run:
@@ -30,10 +38,20 @@ down:
 db:
 	docker compose up -d --wait postgres
 
-## db-reset: Datenbank löschen und neu anlegen
+## db-reset: Datenbank des aktuellen Branches löschen und neu anlegen
 db-reset:
 	docker compose down -v
 	$(MAKE) db
+
+## psql: Mit der Datenbank des aktuellen Branches verbinden
+psql: db
+	docker compose exec postgres psql -U midnightsports
+
+## containers: Compose-Projekte aller Branches anzeigen (Branch samt Daten entfernen: docker compose -p <name> down -v)
+containers:
+	@echo "Aktuell: $(COMPOSE_PROJECT_NAME)"
+	@docker compose ls -a --filter name=midnightsports
+	@docker volume ls --filter name=midnightsports
 
 ## dev: Backend und Frontend mit Hot Reload starten (http://localhost:5173)
 dev: db web/node_modules

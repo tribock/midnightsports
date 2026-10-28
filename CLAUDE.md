@@ -8,7 +8,7 @@ people and their profile are global.
 
 ## Read first
 
-- `docs/architektur.md`: system overview, use cases per role, ERD, warnings/bans, sharing, audit log, sequence diagrams (login, project link, onboarding, QR check-in, payout), open data migration, performance rules
+- `docs/architektur.md`: overview, roles, ERD, rules (tenant isolation, warnings/bans, sharing, audit), sequence diagrams (project link, check-in), open data migration, performance
 - `docs/anforderungen.md`: client requirements and their status (done / open / deliberately not done). Update it when requirements change
 - `README.md`: features per role (German)
 - `docs/lokale-entwicklung.md`: local setup, `.env`, dev login without Google
@@ -45,7 +45,8 @@ gitignored and may be missing. Their content is captured in `docs/anforderungen.
 - `make dev`: Postgres in Docker, backend (`go run`, :8080) and frontend (Vite, :5173) with hot reload
 - `make run`: whole app in Docker (:8080), like production
 - `make test`: `go vet` + `go test` and `vitest`
-- `make db-reset`: delete and recreate the **local** database (never in production)
+- `make db-reset`: delete and recreate the **local** database of the current branch (never in production)
+- Local Docker containers and the database volume are per branch: compose project `midnightsports` on `main`, `midnightsports-<branch>` elsewhere (`COMPOSE_PROJECT_NAME` in the `Makefile`). Use `make db` / `make psql` / `make containers`, not plain `docker compose`
 - Frontend only: `cd web && npm run build` (includes `tsc`), `npm test`
 - Backend only: `cd api && go vet ./... && go test ./...`
 
@@ -54,6 +55,7 @@ gitignored and may be missing. Their content is captured in `docs/anforderungen.
 - **Language**: UI texts, error messages, code comments, docs and test names are German, Swiss spelling (`ss`, never `ß`: "gross", "Strasse"). Identifiers are English
 - **Schema**: production (branch `main`) runs on Cloud SQL with real data. There, never change a migration that has already run; every schema change is a new file `00N_short_name.sql` (runs once in a transaction at startup, `db.Migrate`) that works on existing data, and take a Cloud SQL backup before deploying it.
   **Branch `feat/multitenancy`**: the multi-tenant schema is a rewrite of `001_init.sql` for a fresh deployment (`make db-reset` locally). Until the merge, change `001_init.sql` in place on this branch. Migrating the production data is planned after the merge (`docs/architektur.md`, "Migration der bestehenden Daten"); don't write a data migration before that. Keep the ERD in `docs/architektur.md` in sync
+- **Docs**: short and to the point, no emojis
 - **Comments**: short German comments explain *why*, at the density of the surrounding code
 - **Tests**: keep them simple: table tests for pure functions, no database in unit tests. Extract business rules into pure functions to test them (e.g. `staffEntry`, `validateProfile`, `parseSignature`)
 - Run `gofmt`, `go vet`, the tests and `npm run build` before finishing a change
@@ -87,7 +89,8 @@ gitignored and may be missing. Their content is captured in `docs/anforderungen.
 - Every API route is registered with `s.route`, `s.adminRoute` or a project route, which require a session. Only health, version, config, the login endpoints, the wallet logo and the public project info for the login page (`/api/public/projects/{project}` and its logo, active projects only) are public (`m.HandleFunc`). `TestRoutesRequireLogin` checks all routes automatically; never register data endpoints with `m.HandleFunc`
 - Grant the narrowest role that works; full profiles, editing and deleting people are global-admin only (`/api/admin/users`)
 - Uploaded logos: PNG, JPEG or WebP only (`parseLogo` checks the bytes), never SVG (scripts)
-- Pending projects (sharing not yet consented) are only reachable by global admins (`loadMember`), hidden from search and public info
+- Pending projects (sharing not yet consented) are only reachable by global admins (`loadMember`), hidden from search, public info and the public logo; the frontend doesn't open them
+- **Strict tenant isolation**: never load data before the membership/project check passed. Check membership first, then load the person (`checkInUser`). Error messages must not reveal data of other projects (names, whether an email exists)
 - `security.go` wraps everything: CSP, `X-Frame-Options`, `nosniff`, HSTS on HTTPS, and `http.CrossOriginProtection` against CSRF. The CSP allows no inline scripts or external hosts; if a feature needs one, extend the policy deliberately
 - Google login uses state + PKCE cookies, Apple login state + nonce; sessions are random tokens, stored only as HMAC
 - Free text in CSV exports goes through `csvText` (formula injection)
