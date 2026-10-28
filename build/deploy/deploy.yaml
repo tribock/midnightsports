@@ -59,21 +59,19 @@ spec:
             - name: GOOGLE_WALLET_KEY_FILE
               value: /secrets/google-wallet/key.json
             # Optional: Apple Wallet
-            # - name: APPLE_PASS_TYPE_ID
-            #   value: "${APPLE_PASS_TYPE_ID}"
-            # - name: APPLE_TEAM_ID
-            #   value: "${APPLE_TEAM_ID}"
-            # - name: APPLE_PASS_PEM_FILE
-            #   value: /secrets/apple-pass/pass.pem
-            # Optional: Login mit Apple (APPLE_TEAM_ID nur einmal aufführen)
-            # - name: APPLE_TEAM_ID
-            #   value: "${APPLE_TEAM_ID}"
-            # - name: APPLE_LOGIN_CLIENT_ID
-            #   value: "${PROD_APPLE_LOGIN_CLIENT_ID}"
-            # - name: APPLE_LOGIN_KEY_ID
-            #   value: "${PROD_APPLE_LOGIN_KEY_ID}"
-            # - name: APPLE_LOGIN_KEY_FILE
-            #   value: /secrets/apple-login/key.p8
+            - name: APPLE_PASS_TYPE_ID
+              value: "${PROD_APPLE_PASS_TYPE_ID}"
+            - name: APPLE_TEAM_ID
+              value: "${PROD_APPLE_TEAM_ID}"
+            - name: APPLE_PASS_PEM_FILE
+              value: /secrets/apple-pass/pass.pem
+            # Optional: Login mit Apple (APPLE_TEAM_ID steht schon bei Apple Wallet, nur einmal aufführen)
+            - name: APPLE_LOGIN_CLIENT_ID
+              value: "${PROD_APPLE_LOGIN_CLIENT_ID}"
+            - name: APPLE_LOGIN_KEY_ID
+              value: "${PROD_APPLE_LOGIN_KEY_ID}"
+            - name: APPLE_LOGIN_KEY_FILE
+              value: /secrets/apple-login/key.p8
           resources:
             limits: { cpu: "1", memory: 512Mi }
           volumeMounts:
@@ -81,13 +79,13 @@ spec:
               mountPath: /secrets/google-wallet
               readOnly: true
             # Optional: Apple Wallet
-            # - name: apple-pass
-            #   mountPath: /secrets/apple-pass
-            #   readOnly: true
+            - name: apple-pass
+              mountPath: /secrets/apple-pass
+              readOnly: true
             # Optional: Login mit Apple
-            # - name: apple-login
-            #   mountPath: /secrets/apple-login
-            #   readOnly: true
+            - name: apple-login
+              mountPath: /secrets/apple-login
+              readOnly: true
       volumes:
         - name: google-wallet
           secret:
@@ -96,19 +94,19 @@ spec:
               - key: latest
                 path: key.json
         # Optional: Apple Wallet
-        # - name: apple-pass
-        #   secret:
-        #     secretName: apple-pass-pem
-        #     items:
-        #       - key: latest
-        #         path: pass.pem
+        - name: apple-pass
+          secret:
+            secretName: apple-pass-pem
+            items:
+              - key: latest
+                path: pass.pem
         # Optional: Login mit Apple
-        # - name: apple-login
-        #   secret:
-        #     secretName: apple-login-key
-        #     items:
-        #       - key: latest
-        #         path: key.p8
+        - name: apple-login
+          secret:
+            secretName: apple-login-key
+            items:
+              - key: latest
+                path: key.p8
   traffic:
     - percent: 100
       latestRevision: true

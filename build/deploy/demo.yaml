@@ -51,7 +51,7 @@ spec:
               value: "${GOOGLE_WALLET_ISSUER_ID}"
             # Optional: Login mit Apple
             # - name: APPLE_TEAM_ID
-            #   value: "${APPLE_TEAM_ID}"
+            #   value: "${PROD_APPLE_TEAM_ID}"
             # - name: APPLE_LOGIN_CLIENT_ID
             #   value: "${DEMO_APPLE_LOGIN_CLIENT_ID}"
             # - name: APPLE_LOGIN_KEY_ID

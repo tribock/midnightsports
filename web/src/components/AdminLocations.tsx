@@ -1,11 +1,13 @@
 import { useEffect, useState, type ChangeEvent, type FormEvent } from 'react'
-import { api, errorMessage, type Location } from '../api'
+import { errorMessage, type Location } from '../api'
 import { formatAddress } from '../format'
+import { useProject } from '../project'
 
 const empty: Location = { id: 0, name: '', street: '', zip: '', city: '', isDefault: false }
 
-/** Veranstaltungsorte als Liste, Bearbeiten direkt in der Zeile. Teil der Administration (nur Admins). */
+/** Veranstaltungsorte des Projekts als Liste, Bearbeiten direkt in der Zeile. Teil der Administration (Projekt-Admins). */
 export default function AdminLocations() {
+  const { api } = useProject()
   const [locations, setLocations] = useState<Location[]>([])
   // id des bearbeiteten Orts, 0 = neuer Ort
   const [editing, setEditing] = useState<number | null>(null)
@@ -18,7 +20,7 @@ export default function AdminLocations() {
       .catch((err) => setError(errorMessage(err)))
   }
 
-  useEffect(load, [])
+  useEffect(load, [api])
 
   function done() {
     setEditing(null)
@@ -67,6 +69,7 @@ export default function AdminLocations() {
 }
 
 function LocationForm({ location, onDone, onCancel }: { location: Location; onDone: () => void; onCancel: () => void }) {
+  const { api } = useProject()
   const [form, setForm] = useState(location)
   const [error, setError] = useState('')
 

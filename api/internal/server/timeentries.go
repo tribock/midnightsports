@@ -3,6 +3,7 @@ package server
 import (
 	"context"
 	"encoding/csv"
+	"errors"
 	"net/http"
 	"strconv"
 	"strings"
@@ -29,20 +30,21 @@ const timeEntryQuery = `SELECT t.id, t.user_id::text, trim(u.first_name || ' ' |
 	JOIN users u ON u.id = t.user_id
 	LEFT JOIN events e ON e.id = t.event_id`
 
-// queryTimeEntries liefert die eigenen Einträge, mit all = true die aller Personen.
-func (s *Server) queryTimeEntries(ctx context.Context, u *User, all bool) ([]TimeEntry, error) {
+// queryTimeEntries liefert die eigenen Einträge im Projekt, mit all = true die aller Personen.
+func (s *Server) queryTimeEntries(ctx context.Context, m *Member, all bool) ([]TimeEntry, error) {
 	rows, err := s.db.Query(ctx,
-		timeEntryQuery+` WHERE $1 OR t.user_id = $2 ORDER BY t.date DESC, t.id DESC`, all, u.ID)
+		timeEntryQuery+` WHERE t.project_id = $3 AND ($1 OR t.user_id = $2) ORDER BY t.date DESC, t.id DESC`,
+		all, m.ID, m.Project.ID)
 	if err != nil {
 		return nil, err
 	}
 	return pgx.CollectRows(rows, pgx.RowToStructByPos[TimeEntry])
 }
 
-func (s *Server) listTimeEntries(w http.ResponseWriter, r *http.Request, u *User) error {
-	// Admins sehen mit ?all=true alle Einträge, sonst nur die eigenen
-	all := u.Role == RoleAdmin && r.URL.Query().Get("all") == "true"
-	entries, err := s.queryTimeEntries(r.Context(), u, all)
+func (s *Server) listTimeEntries(w http.ResponseWriter, r *http.Request, m *Member) error {
+	// Projekt-Admins sehen mit ?all=true alle Einträge, sonst nur die eigenen
+	all := m.Role == RoleAdmin && r.URL.Query().Get("all") == "true"
+	entries, err := s.queryTimeEntries(r.Context(), m, all)
 	if err != nil {
 		return err
 	}
@@ -50,7 +52,7 @@ func (s *Server) listTimeEntries(w http.ResponseWriter, r *http.Request, u *User
 	return nil
 }
 
-func (s *Server) createTimeEntry(w http.ResponseWriter, r *http.Request, u *User) error {
+func (s *Server) createTimeEntry(w http.ResponseWriter, r *http.Request, m *Member) error {
 	var in TimeEntry
 	if err := decode(r, &in); err != nil {
 		return err
@@ -62,11 +64,15 @@ func (s *Server) createTimeEntry(w http.ResponseWriter, r *http.Request, u *User
 	if in.Hours <= 0 || in.Hours > 24 {
 		return errorf(http.StatusBadRequest, "Dauer muss zwischen 0 und 24 Stunden liegen")
 	}
+	// Ein Event muss zum Projekt gehören
 	var id int
 	err = s.db.QueryRow(r.Context(),
-		`INSERT INTO time_entries (user_id, date, hours, description, event_id) VALUES ($1, $2, $3, $4, $5) RETURNING id`,
-		u.ID, date, in.Hours, strings.TrimSpace(in.Description), in.EventID).Scan(&id)
-	if isForeignKeyViolation(err) {
+		`INSERT INTO time_entries (project_id, user_id, date, hours, description, event_id)
+		 SELECT $1, $2, $3, $4, $5, $6
+		 WHERE $6::int IS NULL OR EXISTS (SELECT 1 FROM events WHERE id = $6 AND project_id = $1)
+		 RETURNING id`,
+		m.Project.ID, m.ID, date, in.Hours, strings.TrimSpace(in.Description), in.EventID).Scan(&id)
+	if errors.Is(err, pgx.ErrNoRows) || isForeignKeyViolation(err) {
 		return errorf(http.StatusBadRequest, "Unbekannter Event")
 	}
 	if err != nil {
@@ -84,22 +90,28 @@ func (s *Server) createTimeEntry(w http.ResponseWriter, r *http.Request, u *User
 	return nil
 }
 
-func (s *Server) deleteTimeEntry(w http.ResponseWriter, r *http.Request, u *User) error {
+func (s *Server) deleteTimeEntry(w http.ResponseWriter, r *http.Request, m *Member) error {
 	id, err := pathInt(r, "id")
 	if err != nil {
 		return err
 	}
 	if err := s.execOne(r.Context(),
-		`DELETE FROM time_entries WHERE id = $1 AND (user_id = $2 OR $3)`, id, u.ID, u.Role == RoleAdmin); err != nil {
+		`DELETE FROM time_entries WHERE id = $1 AND project_id = $2 AND (user_id = $3 OR $4)`,
+		id, m.Project.ID, m.ID, m.Role == RoleAdmin); err != nil {
 		return err
 	}
 	return noContent(w)
 }
 
-// exportTimeEntries liefert alle Zeiteinträge als CSV (Semikolon, UTF-8 mit BOM für Excel).
-func (s *Server) exportTimeEntries(w http.ResponseWriter, r *http.Request, u *User) error {
-	entries, err := s.queryTimeEntries(r.Context(), u, true)
+// exportTimeEntries liefert alle Zeiteinträge des Projekts als CSV (Semikolon, UTF-8 mit BOM für Excel).
+// Ein Export von Personendaten wird protokolliert.
+func (s *Server) exportTimeEntries(w http.ResponseWriter, r *http.Request, m *Member) error {
+	entries, err := s.queryTimeEntries(r.Context(), m, true)
 	if err != nil {
+		return err
+	}
+	if err := s.audit(r.Context(), s.db, auditEntry{Actor: m.User, ProjectID: &m.Project.ID, Action: actionExport,
+		Details: map[string]any{"daten": "zeiterfassung", "eintraege": len(entries)}}); err != nil {
 		return err
 	}
 

@@ -1,7 +1,7 @@
-import type { EmergencyRelation, Gender, Role, UserStatus } from './api'
+import type { BanAction, EmergencyRelation, Gender, Role, SanctionLevel, UserStatus } from './api'
 
 export const roleLabels: Record<Role, string> = {
-  admin: 'Admin',
+  admin: 'Projekt-Admin',
   projektleiter: 'Projektleiter',
   mitarbeiter: 'Mitarbeiter',
   teilnehmer: 'Teilnehmer',
@@ -19,10 +19,64 @@ export const relationLabels: Record<EmergencyRelation, string> = {
   andere: 'Andere',
 }
 
-export const statusLabels: Record<UserStatus, string> = {
-  schueler_aadorf: 'Schüler-/in aus Aadorf',
-  gast_extern: 'Gast extern',
-  mitarbeiter: 'Mitarbeiter',
+/** Status im Projekt, "Schüler/in" mit der Region des Projekts: statusLabels("Aadorf").schueler */
+export function statusLabels(region: string): Record<UserStatus, string> {
+  return {
+    schueler: region ? `Schüler-/in aus ${region}` : 'Schüler-/in',
+    gast_extern: 'Gast extern',
+    mitarbeiter: 'Mitarbeiter',
+  }
+}
+
+export const sanctionLabels: Record<SanctionLevel, string> = {
+  verwarnung: 'Verwarnt',
+  sperre: 'Gesperrt',
+}
+
+export const banActionLabels: Record<BanAction, string> = {
+  entsperren: 'Sperre aufheben',
+  verwarnen: 'In Verwarnung umwandeln',
+}
+
+/** Aktionen im Audit-Protokoll (siehe audit.go) */
+export const auditLabels: Record<string, string> = {
+  'mitglied.angemeldet': 'Beim Projekt angemeldet',
+  'mitglied.rolle': 'Rolle geändert',
+  'mitglied.status': 'Status geändert',
+  'mitglied.funktion': 'Funktion geändert',
+  'gast.erfasst': 'Gast erfasst',
+  'notfallkontakt.angesehen': 'Notfallkontakt angesehen',
+  'profil.angesehen': 'Profil angesehen',
+  'profil.geaendert': 'Profil geändert',
+  'benutzer.geloescht': 'Benutzer gelöscht',
+  'konto.geloescht': 'Eigenes Konto gelöscht',
+  export: 'Daten exportiert',
+  'sanktion.erfasst': 'Verwarnt / gesperrt',
+  'sanktion.aufgehoben': 'Verwarnung / Sperre aufgehoben',
+  'sanktion.fristen': 'Fristen für Verwarnungen geändert',
+  'notfallzugriff.geaendert': 'Zugriff auf Notfallkontakte geändert',
+  'projekt.erstellt': 'Projekt erstellt',
+  'projekt.geaendert': 'Projekt geändert',
+  'teilen.angefragt': 'Teilen angefragt',
+  'teilen.eingewilligt': 'Teilen eingewilligt',
+  'teilen.abgelehnt': 'Teilen abgelehnt',
+  'teilen.entfernt': 'Teilen beendet',
+}
+
+/** "Max Muster", ohne Namen die Email bzw. "(Profil unvollständig)" */
+export function personName(p: { firstName: string; lastName: string; email?: string }): string {
+  const name = `${p.firstName} ${p.lastName}`.trim()
+  return name || p.email || '(Profil unvollständig)'
+}
+
+/** Datei als data-URL lesen (Logo-Upload) */
+export function readDataURL(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader()
+    reader.onload = () => resolve(String(reader.result))
+    reader.onerror = () => reject(reader.error)
+    reader.readAsDataURL(file)
+  })
 }
 
 const chf = new Intl.NumberFormat('de-CH', { style: 'currency', currency: 'CHF' })

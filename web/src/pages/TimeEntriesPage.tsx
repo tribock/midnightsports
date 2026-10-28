@@ -1,13 +1,14 @@
 import { useCallback, useEffect, useState, type FormEvent } from 'react'
-import { api, errorMessage, type Event, type TimeEntry } from '../api'
-import { isAdmin, useAuth } from '../auth'
+import { errorMessage, type Event, type TimeEntry } from '../api'
+import { isAdmin } from '../auth'
 import { formatShortDate, parseDecimal, todayISO } from '../format'
+import { useProject } from '../project'
 
 const emptyForm = { date: todayISO(), hours: '', description: '', eventId: '' }
 
 export default function TimeEntriesPage() {
-  const { user } = useAuth()
-  const admin = isAdmin(user)
+  const { api, member } = useProject()
+  const admin = isAdmin(member)
   const [all, setAll] = useState(false)
   const [entries, setEntries] = useState<TimeEntry[]>([])
   const [events, setEvents] = useState<Event[]>([])
@@ -19,14 +20,14 @@ export default function TimeEntriesPage() {
       .get<TimeEntry[]>(`/time-entries${all ? '?all=true' : ''}`)
       .then(setEntries)
       .catch((err) => setError(errorMessage(err)))
-  }, [all])
+  }, [api, all])
 
   useEffect(load, [load])
   useEffect(() => {
     Promise.all([api.get<Event[]>('/events?past=true'), api.get<Event[]>('/events')]).then(([past, upcoming]) =>
       setEvents([...upcoming.reverse(), ...past]),
     )
-  }, [])
+  }, [api])
 
   async function submit(e: FormEvent) {
     e.preventDefault()
@@ -59,7 +60,7 @@ export default function TimeEntriesPage() {
         {admin && (
           <div className="actions">
             <button onClick={() => setAll(!all)}>{all ? 'Nur meine' : 'Alle anzeigen'}</button>
-            <a className="button" href="/api/time-entries/export.csv">
+            <a className="button" href={`/api/p/${member.project.slug}/time-entries/export.csv`}>
               CSV exportieren
             </a>
           </div>
