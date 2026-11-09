@@ -72,11 +72,13 @@ gitignored and may be missing. Their content is captured in `docs/anforderungen.
 - Write path: `s.execOne(...)` (404 if no row affected), then `return noContent(w)`
 - **IDs**: compare UUID columns directly (`WHERE id = $1`), never `id::text = $1`, which defeats the index. Validate incoming IDs with `pathUUID` / `validUUID` first
 - Load rows with `pgx.CollectRows(rows, pgx.RowToStructByPos[T])`, or a `rows.Next()` loop with `defer rows.Close()`. Several writes in one transaction: `pgx.Batch`
+- Paged lists (`page.go`): `readPage(r)` (offset, limit 50, max 100), `pageTotal` as last column, `p.sql(n)` for LIMIT/OFFSET, `collectPage` returns `Page[T]` (`{total, offset, limit, items}`). End `ORDER BY` with the id so pages are stable
 - SQL lives in the handlers as plain strings. Keep it readable rather than clever
 
 ### Frontend
 
-- Data loading: `api.get<T>(path).then(set).catch((err) => setError(errorMessage(err)))` in `useEffect`. In project pages use `const { api, base, member } = useProject()` (scoped API, links as `${base}/events/...`), elsewhere the global `api`. Debounced searches must ignore stale responses (see `MembersPage`)
+- Data loading: `api.get<T>(path).then(set).catch((err) => setError(errorMessage(err)))` in `useEffect`. In project pages use `const { api, base, member } = useProject()` (scoped API, links as `${base}/events/...`), elsewhere the global `api`
+- Searches and paged lists: `usePagedSearch` and `Pager` from `paging.tsx` (debounce, ignores stale responses, new query starts at page 1). Don't write another search effect
 - Role checks only through the helpers in `auth.tsx`, with the project `member` (not the global user)
 - Use CSS classes from `styles.css` (`stack`, `row`, `card`, `list`, `table`, `actions`, `badge`, `chip`, `icon-button`, `muted`, `small`, `error`) and its color tokens. New colors go into the tokens, light and dark
 - Printing: render a `PrintSheet` (`components/PrintSheet.tsx`, hidden on screen, the only thing printed) and call `printDocument(filename)`. "PDF" means the browser's "Save as PDF"

@@ -19,6 +19,9 @@ make run                # ganze App in Docker wie in Produktion, :8080
 | `make containers` | Container und Volumes aller Branches anzeigen |
 | `make test` | Tests für Backend und Frontend |
 
+Dateipfade in `.env` (z.B. `GOOGLE_WALLET_KEY_FILE=/secrets/...`) gelten für den Container von `make run`.
+`make dev` leitet `*_FILE=/secrets/...` für das lokal gestartete Backend auf den Ordner `secrets/` um.
+
 ## Datenbank
 
 - PostgreSQL 17 in Docker auf `localhost:5432`, Benutzer, Passwort und Datenbank `midnightsports`

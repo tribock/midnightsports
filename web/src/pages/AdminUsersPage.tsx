@@ -1,9 +1,10 @@
-import { Fragment, useEffect, useState, type FormEvent, type ReactNode } from 'react'
-import { api, errorMessage, type AdminUser, type User } from '../api'
+import { Fragment, useCallback, useEffect, useState, type FormEvent, type ReactNode } from 'react'
+import { api, errorMessage, type AdminUser, type Page, type User } from '../api'
 import { useAuth } from '../auth'
 import { PenIcon, TrashIcon } from '../components/Icons'
 import ProfileFields, { type ProfileData } from '../components/ProfileFields'
 import { personName } from '../format'
+import { Pager, usePagedSearch } from '../paging'
 
 /**
  * Benutzer (globale Administration): alle Personen über alle Projekte. Nur hier lassen sich Profile ändern
@@ -11,25 +12,13 @@ import { personName } from '../format'
  */
 export default function AdminUsersPage() {
   const { user } = useAuth()
-  const [query, setQuery] = useState('')
-  const [users, setUsers] = useState<AdminUser[] | null>(null)
   const [editing, setEditing] = useState<string | null>(null)
-  const [error, setError] = useState('')
-
-  useEffect(() => {
-    // Antworten zu einem veralteten Suchbegriff ignorieren
-    let current = true
-    const t = setTimeout(() => {
-      api
-        .get<AdminUser[]>(`/admin/users?q=${encodeURIComponent(query)}`)
-        .then((list) => current && setUsers(list))
-        .catch((err) => current && setError(errorMessage(err)))
-    }, 250)
-    return () => {
-      current = false
-      clearTimeout(t)
-    }
-  }, [query])
+  const fetchPage = useCallback(
+    (q: string, offset: number) => api.get<Page<AdminUser>>(`/admin/users?q=${encodeURIComponent(q)}&offset=${offset}`),
+    [],
+  )
+  const { query, setQuery, page, setOffset, error, setError, updateItems, reload } = usePagedSearch(fetchPage)
+  const users = page?.items ?? null
 
   async function remove(u: AdminUser) {
     if (!confirm(`${personName(u)} endgültig löschen? Besuche an Events bleiben anonym für die Statistik erhalten.`)) {
@@ -38,7 +27,8 @@ export default function AdminUsersPage() {
     setError('')
     try {
       await api.del(`/admin/users/${u.id}`)
-      setUsers((list) => list?.filter((x) => x.id !== u.id) ?? null)
+      // Neu laden, damit die Seite wieder voll ist und die Gesamtzahl stimmt
+      reload()
     } catch (err) {
       setError(errorMessage(err))
     }
@@ -48,9 +38,7 @@ export default function AdminUsersPage() {
     <div className="stack">
       <div className="page-header">
         <h1>Benutzer</h1>
-        {users && (
-          <span className="muted small">{users.length === 100 ? 'Erste 100 Treffer' : `${users.length} Benutzer`}</span>
-        )}
+        {page && <span className="muted small">{page.total} Benutzer</span>}
       </div>
       <p className="muted small">
         Alle Personen über alle Projekte. Das Öffnen eines Profils wird im Audit-Protokoll festgehalten.
@@ -104,9 +92,9 @@ export default function AdminUsersPage() {
                       <EditUserPanel
                         userId={u.id}
                         onSaved={(saved) => {
-                          setUsers(
+                          updateItems(
                             (list) =>
-                              list?.map((x) =>
+                              list.map((x) =>
                                 x.id === u.id
                                   ? { ...x, firstName: saved.firstName, lastName: saved.lastName, email: saved.email }
                                   : x,
@@ -124,6 +112,7 @@ export default function AdminUsersPage() {
           </tbody>
         </table>
       )}
+      {page && page.total > 0 && <Pager page={page} onChange={setOffset} />}
     </div>
   )
 }

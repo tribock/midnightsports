@@ -5,6 +5,7 @@ import {
   type CheckinResult,
   type Event,
   type MemberSummary,
+  type Page,
   type Participant,
   type Report,
   type StaffEntry,
@@ -18,6 +19,7 @@ import ProfileFields, { emptyProfile, type ProfileData } from '../components/Pro
 import { WarningIcon } from '../components/Icons'
 import { SanctionBadge, SanctionForm, SanctionNotice } from '../components/Sanctions'
 import StatusSelect from '../components/StatusSelect'
+import { usePagedSearch } from '../paging'
 import { useProject } from '../project'
 import { EventCard } from './EventsPage'
 
@@ -252,27 +254,19 @@ function CheckinMessage({ result }: { result: CheckinResult }) {
 /** Erfassung über die Eingabemaske: Mitglied des Projekts suchen oder Gast erfassen. */
 function ManualCheckin({ eventId, onDone }: { eventId: number; onDone: () => void }) {
   const { api } = useProject()
-  const [query, setQuery] = useState('')
-  const [results, setResults] = useState<MemberSummary[]>([])
+  // Suche ab 2 Zeichen, wie bisher bis 100 Treffer ohne Blättern
+  const fetchPage = useCallback(
+    (q: string): Promise<Page<MemberSummary>> =>
+      q.trim().length < 2
+        ? Promise.resolve({ total: 0, offset: 0, limit: 0, items: [] })
+        : api.get<Page<MemberSummary>>(`/members?q=${encodeURIComponent(q)}&limit=100`),
+    [api],
+  )
+  const { query, setQuery, page } = usePagedSearch(fetchPage)
+  const results = page?.items ?? []
   const [guestOpen, setGuestOpen] = useState(false)
   const [result, setResult] = useState<CheckinResult | null>(null)
   const [message, setMessage] = useState('')
-
-  useEffect(() => {
-    if (query.trim().length < 2) {
-      setResults([])
-      return
-    }
-    // Antworten zu einem veralteten Suchbegriff ignorieren
-    let current = true
-    const t = setTimeout(() => {
-      api.get<MemberSummary[]>(`/members?q=${encodeURIComponent(query)}`).then((list) => current && setResults(list))
-    }, 250)
-    return () => {
-      current = false
-      clearTimeout(t)
-    }
-  }, [api, query])
 
   function done(r: CheckinResult) {
     setResult(r)

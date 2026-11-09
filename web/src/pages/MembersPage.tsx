@@ -1,10 +1,11 @@
 import { Fragment, useCallback, useEffect, useState, type ReactNode } from 'react'
-import { errorMessage, type EmergencyContact, type MemberSummary, type Role, type UserStatus } from '../api'
+import { errorMessage, type EmergencyContact, type MemberSummary, type Page, type Role, type UserStatus } from '../api'
 import { isAdmin, isProjectLead } from '../auth'
 import { PhoneIcon, WarningIcon } from '../components/Icons'
 import { SanctionBadge, SanctionForm } from '../components/Sanctions'
 import StatusSelect from '../components/StatusSelect'
 import { personName, relationLabels, roleLabels, statusLabels } from '../format'
+import { Pager, usePagedSearch } from '../paging'
 import { useProject } from '../project'
 
 /** Aufgeklappter Bereich unter einer Zeile: Notfallkontakt oder Verwarnung/Sperre */
@@ -18,27 +19,13 @@ export default function MembersPage() {
   const { api, member, project } = useProject()
   const admin = isAdmin(member)
   const lead = isProjectLead(member)
-  const [query, setQuery] = useState('')
-  const [members, setMembers] = useState<MemberSummary[] | null>(null)
   const [panel, setPanel] = useState<Panel | null>(null)
-  const [error, setError] = useState('')
-  const [version, setVersion] = useState(0)
-  const reload = useCallback(() => setVersion((v) => v + 1), [])
-
-  useEffect(() => {
-    // Antworten zu einem veralteten Suchbegriff ignorieren
-    let current = true
-    const t = setTimeout(() => {
-      api
-        .get<MemberSummary[]>(`/members?q=${encodeURIComponent(query)}`)
-        .then((list) => current && setMembers(list))
-        .catch((err) => current && setError(errorMessage(err)))
-    }, 250)
-    return () => {
-      current = false
-      clearTimeout(t)
-    }
-  }, [api, query, version])
+  const fetchPage = useCallback(
+    (q: string, offset: number) => api.get<Page<MemberSummary>>(`/members?q=${encodeURIComponent(q)}&offset=${offset}`),
+    [api],
+  )
+  const { query, setQuery, page, setOffset, error, setError, updateItems, reload } = usePagedSearch(fetchPage)
+  const members = page?.items ?? null
 
   function togglePanel(userId: string, kind: Panel['kind']) {
     setPanel((p) => (p?.userId === userId && p.kind === kind ? null : { userId, kind }))
@@ -48,7 +35,7 @@ export default function MembersPage() {
     setError('')
     try {
       await api.put(`/members/${m.id}/${field}`, { [field]: value })
-      setMembers((list) => list?.map((x) => (x.id === m.id ? { ...x, [field]: value } : x)) ?? null)
+      updateItems((list) => list.map((x) => (x.id === m.id ? { ...x, [field]: value } : x)))
     } catch (err) {
       setError(errorMessage(err))
     }
@@ -59,15 +46,7 @@ export default function MembersPage() {
     <div className="stack">
       <div className="page-header">
         <h1>Teilnehmer</h1>
-        {members && (
-          <span className="muted small">
-            {members.length === 100
-              ? 'Erste 100 Treffer'
-              : members.length === 1
-                ? '1 Mitglied'
-                : `${members.length} Mitglieder`}
-          </span>
-        )}
+        {page && <span className="muted small">{page.total === 1 ? '1 Mitglied' : `${page.total} Mitglieder`}</span>}
       </div>
       <p className="muted small">
         Alle Personen, die sich für {project.name} angemeldet haben. Profile ändert nur die globale Administration.
@@ -177,6 +156,7 @@ export default function MembersPage() {
           </tbody>
         </table>
       )}
+      {page && page.total > 0 && <Pager page={page} onChange={setOffset} />}
     </div>
   )
 }

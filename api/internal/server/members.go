@@ -5,8 +5,6 @@ import (
 	"slices"
 	"strings"
 	"time"
-
-	"github.com/jackc/pgx/v5"
 )
 
 // MemberSummary ist ein Mitglied in der Teilnehmerliste eines Projekts.
@@ -23,48 +21,47 @@ type MemberSummary struct {
 	Sanctions []Sanction `json:"sanctions"`
 }
 
-// listMembers sucht Mitglieder des Projekts nach Name oder Email, optional gefiltert nach Rolle.
+// listMembers sucht Mitglieder des Projekts nach Name oder Email, optional gefiltert nach Rolle, seitenweise.
 // Projekt-Admins sehen nur die Personen, die sich für ihr Projekt angemeldet haben.
 func (s *Server) listMembers(w http.ResponseWriter, r *http.Request, m *Member) error {
 	q := strings.TrimSpace(r.URL.Query().Get("q"))
 	role := r.URL.Query().Get("role")
+	p := readPage(r)
 	rows, err := s.db.Query(r.Context(),
 		`SELECT u.id::text, COALESCE(u.email, ''), pm.role, pm.status, u.first_name, u.last_name,
-		        COALESCE(to_char(u.birth_date, 'YYYY-MM-DD'), ''), u.guest, pm.joined_at
+		        COALESCE(to_char(u.birth_date, 'YYYY-MM-DD'), ''), u.guest, pm.joined_at, `+pageTotal+`
 		 FROM project_members pm
 		 JOIN users u ON u.id = pm.user_id
 		 WHERE pm.project_id = $1
 		   AND ($2 = '' OR u.first_name || ' ' || u.last_name ILIKE '%' || $2 || '%' OR u.email ILIKE '%' || $2 || '%')
 		   AND ($3 = '' OR pm.role = $3 OR ($3 = 'projektleiter' AND pm.role = 'admin'))
-		 ORDER BY u.last_name, u.first_name, u.email
-		 LIMIT 100`, m.Project.ID, q, role)
+		 ORDER BY u.last_name, u.first_name, u.email, u.id`+p.sql(4),
+		append([]any{m.Project.ID, q, role}, p.args()...)...)
 	if err != nil {
 		return err
 	}
-	list, err := pgx.CollectRows(rows, func(row pgx.CollectableRow) (MemberSummary, error) {
-		var ms MemberSummary
-		err := row.Scan(&ms.ID, &ms.Email, &ms.Role, &ms.Status, &ms.FirstName, &ms.LastName, &ms.BirthDate,
-			&ms.Guest, &ms.JoinedAt)
-		return ms, err
+	page, err := collectPage(rows, p, func(ms *MemberSummary) []any {
+		return []any{&ms.ID, &ms.Email, &ms.Role, &ms.Status, &ms.FirstName, &ms.LastName, &ms.BirthDate,
+			&ms.Guest, &ms.JoinedAt}
 	})
 	if err != nil {
 		return err
 	}
-	ids := make([]string, len(list))
-	for i, ms := range list {
+	ids := make([]string, len(page.Items))
+	for i, ms := range page.Items {
 		ids[i] = ms.ID
 	}
 	sanctions, err := s.visibleSanctions(r.Context(), s.db, m.Project.ID, ids)
 	if err != nil {
 		return err
 	}
-	for i := range list {
-		list[i].Sanctions = sanctions[list[i].ID]
-		if list[i].Sanctions == nil {
-			list[i].Sanctions = []Sanction{}
+	for i := range page.Items {
+		page.Items[i].Sanctions = sanctions[page.Items[i].ID]
+		if page.Items[i].Sanctions == nil {
+			page.Items[i].Sanctions = []Sanction{}
 		}
 	}
-	writeJSON(w, http.StatusOK, list)
+	writeJSON(w, http.StatusOK, page)
 	return nil
 }
 

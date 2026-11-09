@@ -83,6 +83,14 @@ export interface Sanction {
   own: boolean
 }
 
+/** Seite einer Liste (Teilnehmer, Benutzer), total = alle Treffer */
+export interface Page<T> {
+  total: number
+  offset: number
+  limit: number
+  items: T[]
+}
+
 /** Mitglied in der Teilnehmerliste eines Projekts */
 export interface MemberSummary {
   id: string

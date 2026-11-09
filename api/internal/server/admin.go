@@ -344,26 +344,30 @@ type AdminUser struct {
 	Projects    []string `json:"projects"`
 }
 
-// listAdminUsers sucht Personen über alle Projekte nach Name oder Email.
+// listAdminUsers sucht Personen über alle Projekte nach Name oder Email, seitenweise.
 func (s *Server) listAdminUsers(w http.ResponseWriter, r *http.Request, u *User) error {
 	q := strings.TrimSpace(r.URL.Query().Get("q"))
+	p := readPage(r)
 	rows, err := s.db.Query(r.Context(),
 		`SELECT u.id::text, COALESCE(u.email, ''), u.first_name, u.last_name,
 		        COALESCE(to_char(u.birth_date, 'YYYY-MM-DD'), ''), u.guest, u.global_admin,
 		        COALESCE((SELECT array_agg(p.name ORDER BY p.name)
-		                  FROM project_members m JOIN projects p ON p.id = m.project_id WHERE m.user_id = u.id), '{}')
+		                  FROM project_members m JOIN projects p ON p.id = m.project_id WHERE m.user_id = u.id), '{}'),
+		        `+pageTotal+`
 		 FROM users u
 		 WHERE $1 = '' OR u.first_name || ' ' || u.last_name ILIKE '%' || $1 || '%' OR u.email ILIKE '%' || $1 || '%'
-		 ORDER BY u.last_name, u.first_name, u.email
-		 LIMIT 100`, q)
+		 ORDER BY u.last_name, u.first_name, u.email, u.id`+p.sql(2),
+		append([]any{q}, p.args()...)...)
 	if err != nil {
 		return err
 	}
-	list, err := pgx.CollectRows(rows, pgx.RowToStructByPos[AdminUser])
+	page, err := collectPage(rows, p, func(a *AdminUser) []any {
+		return []any{&a.ID, &a.Email, &a.FirstName, &a.LastName, &a.BirthDate, &a.Guest, &a.GlobalAdmin, &a.Projects}
+	})
 	if err != nil {
 		return err
 	}
-	writeJSON(w, http.StatusOK, list)
+	writeJSON(w, http.StatusOK, page)
 	return nil
 }
 

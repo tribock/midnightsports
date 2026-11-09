@@ -1085,3 +1085,12 @@ dd {
 .table.audit td {
   vertical-align: top;
 }
+
+/* Blättern in Listen (Teilnehmer, Benutzer) */
+
+.pager {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+}
