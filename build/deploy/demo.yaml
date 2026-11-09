@@ -1,9 +1,6 @@
 # Vorlage: Platzhalter ${...} werden von `make deploy-demo` mit envsubst ersetzt (Werte aus .env).
 # Nicht direkt mit gcloud deployen.
-#
-# Login mit Apple ist auskommentiert (wartet auf das Apple-Developer-Konto). Zum Aktivieren die Blöcke
-# "Optional: Login mit Apple" an allen drei Stellen (env, volumeMounts, volumes) einkommentieren und im
-# Makefile die Apple-Variablen bei DEMO_ENV unter require ergänzen.
+# Apple Wallet und Login mit Apple sind aktiv, mit denselben Werten wie die Produktion (PROD_APPLE_* in .env).
 apiVersion: serving.knative.dev/v1
 kind: Service
 metadata:
@@ -49,15 +46,19 @@ spec:
               value: /secrets/google-wallet/key.json
             - name: GOOGLE_WALLET_ISSUER_ID
               value: "${GOOGLE_WALLET_ISSUER_ID}"
-            # Optional: Login mit Apple
-            # - name: APPLE_TEAM_ID
-            #   value: "${APPLE_TEAM_ID}"
-            # - name: APPLE_LOGIN_CLIENT_ID
-            #   value: "${DEMO_APPLE_LOGIN_CLIENT_ID}"
-            # - name: APPLE_LOGIN_KEY_ID
-            #   value: "${DEMO_APPLE_LOGIN_KEY_ID}"
-            # - name: APPLE_LOGIN_KEY_FILE
-            #   value: /secrets/apple-login/key.p8
+            # Apple Wallet und Login mit Apple (APPLE_TEAM_ID gilt für beide)
+            - name: APPLE_TEAM_ID
+              value: "${PROD_APPLE_TEAM_ID}"
+            - name: APPLE_PASS_TYPE_ID
+              value: "${PROD_APPLE_PASS_TYPE_ID}"
+            - name: APPLE_PASS_PEM_FILE
+              value: /secrets/apple-pass/pass.pem
+            - name: APPLE_LOGIN_CLIENT_ID
+              value: "${PROD_APPLE_LOGIN_CLIENT_ID}"
+            - name: APPLE_LOGIN_KEY_ID
+              value: "${PROD_APPLE_LOGIN_KEY_ID}"
+            - name: APPLE_LOGIN_KEY_FILE
+              value: /secrets/apple-login/key.p8
             - name: SESSION_SECRET
               valueFrom:
                 secretKeyRef: { name: session-secret, key: latest }
@@ -70,10 +71,12 @@ spec:
             - name: google-wallet
               mountPath: /secrets/google-wallet
               readOnly: true
-            # Optional: Login mit Apple
-            # - name: apple-login
-            #   mountPath: /secrets/apple-login
-            #   readOnly: true
+            - name: apple-pass
+              mountPath: /secrets/apple-pass
+              readOnly: true
+            - name: apple-login
+              mountPath: /secrets/apple-login
+              readOnly: true
           startupProbe:
             tcpSocket: { port: 8080 }
             timeoutSeconds: 240
@@ -108,13 +111,18 @@ spec:
             items:
               - key: latest
                 path: key.json
-        # Optional: Login mit Apple
-        # - name: apple-login
-        #   secret:
-        #     secretName: apple-login-key
-        #     items:
-        #       - key: latest
-        #         path: key.p8
+        - name: apple-pass
+          secret:
+            secretName: apple-pass-pem
+            items:
+              - key: latest
+                path: pass.pem
+        - name: apple-login
+          secret:
+            secretName: apple-login-key
+            items:
+              - key: latest
+                path: key.p8
         - name: pgdata
           emptyDir: { medium: Memory, sizeLimit: 256Mi }
   traffic:

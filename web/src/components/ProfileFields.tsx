@@ -1,6 +1,6 @@
 import type { InputHTMLAttributes } from 'react'
 import type { User } from '../api'
-import { genderLabels, relationLabels, statusLabels, todayISO } from '../format'
+import { genderLabels, relationLabels, todayISO } from '../format'
 
 export type ProfileData = Pick<
   User,
@@ -9,7 +9,6 @@ export type ProfileData = Pick<
   | 'lastName'
   | 'birthDate'
   | 'gender'
-  | 'status'
   | 'street'
   | 'zip'
   | 'city'
@@ -24,7 +23,6 @@ export const emptyProfile: ProfileData = {
   lastName: '',
   birthDate: '',
   gender: '',
-  status: '',
   street: '',
   zip: '',
   city: '',
@@ -33,28 +31,22 @@ export const emptyProfile: ProfileData = {
   emergencyRelation: '',
 }
 
-type TextField = Exclude<keyof ProfileData, 'gender' | 'status' | 'emergencyRelation'>
-type SelectField = 'gender' | 'status' | 'emergencyRelation'
-
-/** Status, die alle selbst wählen können. Mitarbeiter vergeben nur Admins. */
-const { mitarbeiter: _, ...selfStatusLabels } = statusLabels
+type TextField = Exclude<keyof ProfileData, 'gender' | 'emergencyRelation'>
+type SelectField = 'gender' | 'emergencyRelation'
 
 /**
- * Felder des Profils, gleich für Benutzer und Gäste.
- * email "readonly": Email aus dem Google-Konto, "optional": Gäste ohne Konto.
- * canSetStaffStatus: Status Mitarbeiter wählbar (nur Admins). Ohne wird ein bereits vergebener
- * Status Mitarbeiter nur angezeigt.
+ * Felder des Profils, gleich für Benutzer und Gäste. Das Profil gilt für alle Projekte,
+ * der Status im Projekt wird separat gewählt (StatusSelect).
+ * email "readonly": Email aus dem Google- oder Apple-Konto, "optional": Gäste ohne Konto.
  */
 export default function ProfileFields({
   value,
   onChange,
   email,
-  canSetStaffStatus,
 }: {
   value: ProfileData
   onChange: (value: ProfileData) => void
   email: 'readonly' | 'optional'
-  canSetStaffStatus: boolean
 }) {
   function update(field: keyof ProfileData, v: string) {
     onChange({ ...value, [field]: v })
@@ -69,11 +61,11 @@ export default function ProfileFields({
     )
   }
 
-  function select(field: SelectField, label: string, options: Record<string, string>, disabled = false) {
+  function select(field: SelectField, label: string, options: Record<string, string>) {
     return (
       <label>
         {label}
-        <select required disabled={disabled} value={value[field]} onChange={(e) => update(field, e.target.value)}>
+        <select required value={value[field]} onChange={(e) => update(field, e.target.value)}>
           <option value="" disabled>
             Bitte wählen
           </option>
@@ -107,11 +99,6 @@ export default function ProfileFields({
           {input('birthDate', 'Geburtsdatum', { type: 'date', max: todayISO(), autoComplete: 'bday' })}
           {select('gender', 'Geschlecht', genderLabels)}
         </div>
-        {canSetStaffStatus
-          ? select('status', 'Status', statusLabels)
-          : value.status === 'mitarbeiter'
-            ? select('status', 'Status (vergeben durch Admin)', statusLabels, true)
-            : select('status', 'Status', selfStatusLabels)}
       </fieldset>
 
       <fieldset className="card stack">

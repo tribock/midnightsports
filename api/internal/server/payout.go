@@ -43,8 +43,8 @@ func parseSignature(s string) ([]byte, error) {
 }
 
 // listPayout liefert alle eingeteilten Personen mit Betrag und Unterschrift.
-func (s *Server) listPayout(w http.ResponseWriter, r *http.Request, u *User) error {
-	eventID, err := pathInt(r, "id")
+func (s *Server) listPayout(w http.ResponseWriter, r *http.Request, m *Member) error {
+	eventID, err := s.projectEvent(r, m)
 	if err != nil {
 		return err
 	}
@@ -69,8 +69,8 @@ func (s *Server) listPayout(w http.ResponseWriter, r *http.Request, u *User) err
 }
 
 // signPayout speichert die Unterschrift, mit der eine Person den Empfang ihres Betrags bestätigt.
-func (s *Server) signPayout(w http.ResponseWriter, r *http.Request, u *User) error {
-	eventID, err := pathInt(r, "id")
+func (s *Server) signPayout(w http.ResponseWriter, r *http.Request, m *Member) error {
+	eventID, err := s.projectEvent(r, m)
 	if err != nil {
 		return err
 	}
@@ -102,7 +102,7 @@ func (s *Server) signPayout(w http.ResponseWriter, r *http.Request, u *User) err
 	err = s.execOne(ctx,
 		`UPDATE event_staff SET signature = $3, signed_at = now(), signed_by = $4
 		 WHERE event_id = $1 AND user_id = $2 AND signature IS NULL`,
-		eventID, userID, img, u.ID)
+		eventID, userID, img, m.ID)
 	if errors.Is(err, errNotFound) {
 		return errorf(http.StatusConflict, "Empfang wurde bereits bestätigt")
 	}
@@ -113,8 +113,8 @@ func (s *Server) signPayout(w http.ResponseWriter, r *http.Request, u *User) err
 }
 
 // unsignPayout entfernt eine Unterschrift, z.B. wenn sie versehentlich erfasst wurde.
-func (s *Server) unsignPayout(w http.ResponseWriter, r *http.Request, u *User) error {
-	eventID, err := pathInt(r, "id")
+func (s *Server) unsignPayout(w http.ResponseWriter, r *http.Request, m *Member) error {
+	eventID, err := s.projectEvent(r, m)
 	if err != nil {
 		return err
 	}

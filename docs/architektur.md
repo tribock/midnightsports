@@ -1,298 +1,202 @@
 # Architektur
 
-Überblick über den Aufbau der Applikation: Systemübersicht, Anwendungsfälle, Datenmodell und die wichtigsten Abläufe.
-Die Diagramme sind in [Mermaid](https://mermaid.js.org) geschrieben und werden auf GitHub und in VS Code (Markdown-Vorschau) direkt dargestellt.
+Diagramme in [Mermaid](https://mermaid.js.org), dargestellt auf GitHub und in VS Code.
 
-## Systemübersicht
-
-```mermaid
-flowchart LR
-    subgraph Browser
-        SPA["React-App, Vite (web/)"]
-    end
-    subgraph Server["Go-Server, Cloud Run (api/)"]
-        Static["Frontend ausliefern<br/>(gzip, Cache)"]
-        API["REST-API /api/*<br/>Sessions und Rollen"]
-    end
-    DB[("PostgreSQL")]
-    Google["Google OAuth"]
-    Wallet["Apple / Google Wallet"]
-
-    SPA -- "HTTPS, Session-Cookie" --> API
-    SPA -- "index.html, /assets/*" --> Static
-    API -- "pgx" --> DB
-    API -- "Login" --> Google
-    API -- "QR-Pass" --> Wallet
-```
-
-- Ein einziger Go-Prozess liefert das gebaute Frontend aus und stellt die API bereit.
-- Die Datenbank wird beim Start migriert (`api/internal/db/migrations`).
-- Angemeldet wird über Google. Die Session liegt in einem HttpOnly-Cookie, in der Datenbank wird nur ein HMAC des Tokens gespeichert.
-- Rollen werden pro Route im Server geprüft (`route(...)` in `server.go`), das Frontend blendet nur aus, was nicht erlaubt ist.
-
-## Anwendungsfälle
-
-Jede Rolle kann alles, was die Rolle darunter kann (Teilnehmer < Mitarbeiter < Projektleiter < Admin).
-Pro Rolle sind nur die Anwendungsfälle aufgeführt, die neu dazukommen.
+## Übersicht
 
 ```mermaid
 flowchart LR
-    subgraph RT["Teilnehmer"]
-        T(["👤 Teilnehmer"])
-        T1([Mit Google anmelden])
-        T2([Profil pflegen, Konto löschen])
-        T3([Events ansehen, an- und abmelden])
-        T4([QR-Code / Wallet-Pass anzeigen])
-        T --- T1 & T2 & T3 & T4
-    end
-
-    subgraph RM["Mitarbeiter"]
-        MA(["👤 Mitarbeiter<br/>+ alles von Teilnehmer"])
-        M1([Events erstellen, bearbeiten, absagen])
-        M2([QR-Code scannen: Check-in])
-        M3([Teilnehmer manuell oder als Gast erfassen])
-        MA --- M1 & M2 & M3
-    end
-
-    subgraph RP["Projektleiter"]
-        PL(["👤 Projektleiter<br/>+ alles von Mitarbeiter"])
-        P1([Team einteilen])
-        P2([Auszahlung mit Unterschrift, Spesenblatt drucken])
-        P3([Bericht schreiben und drucken])
-        P4([Zeiterfassung])
-        P5([Notfallkontakte einsehen ¹])
-        PL --- P1 & P2 & P3 & P4 & P5
-    end
-
-    subgraph RA["Admin"]
-        A(["👤 Admin<br/>+ alles von Projektleiter"])
-        A1([Benutzer verwalten: Rolle, Profil, löschen])
-        A2([Funktionen und Löhne festlegen])
-        A3([Zugriff auf Notfallkontakte festlegen])
-        A4([Veranstaltungsorte verwalten])
-        A5([Zeiteinträge als CSV exportieren])
-        A --- A1 & A2 & A3 & A4 & A5
-    end
+    SPA["React-App (web/)"] -- "HTTPS, Session-Cookie" --> API["Go-Server (api/)<br/>REST /api, Frontend"]
+    API -- pgx --> DB[("PostgreSQL")]
+    API -- Login --> IdP["Google / Apple"]
+    API -- QR-Pass --> Wallet["Apple / Google Wallet"]
 ```
 
-¹ Standard: Projektleiter. Admins legen unter Administration fest, welche weiteren Rollen und Funktionen (z.B. SC) Zugriff haben. Admins haben immer Zugriff, Teilnehmer nie.
+- Ein Go-Prozess liefert Frontend und API aus, migriert die Datenbank beim Start (`api/internal/db/migrations`).
+- Session als HttpOnly-Cookie, in der Datenbank nur ein HMAC des Tokens.
+- **Mandanten**: Jedes Projekt (z.B. Midnightsports Aadorf, Pleno) hat eigene Events, Orte, Funktionen, Mitglieder,
+  Verwarnungen und Einstellungen. Personen und Profil sind global, Rolle, Status und Funktion gelten pro Projekt.
+- Routen in `server.go`, der Server prüft jede Rolle:
+  - `route`: angemeldet, ohne Projekt (Profil, QR-Code, Projekte suchen und anmelden)
+  - `adminRoute`: globale Admins (`/api/admin/...`)
+  - Projekt-Routen `/api/p/{project}/...`: `loadMember` lädt Projekt und Mitgliedschaft, Rolle gilt in diesem Projekt
+
+## Rollen
+
+Pro Projekt, jede Rolle kann alles der Rollen darüber.
+
+| Rolle | Kann |
+|---|---|
+| Teilnehmer | Profil, Projekte suchen und beitreten, Events an- und abmelden, QR-Code und Wallet-Pass |
+| Mitarbeiter | Teilnehmerliste, Check-in (Scan oder manuell), Gäste erfassen |
+| Projektleiter | Events erfassen, Team, Auszahlung, Bericht, Zeiterfassung, Notfallkontakte¹, verwarnen und sperren |
+| Projekt-Admin | Rollen und Status, Funktionen und Löhne, Notfallzugriff, Orte, Fristen, Einwilligung zum Teilen, Projekt-Link |
+| Globaler Admin | In jedem Projekt Admin. Projekte erfassen, Personen bearbeiten und löschen, Audit-Protokoll |
+
+¹ Standard: Projektleiter. Projekt-Admins wählen weitere Rollen und Funktionen, Teilnehmer nie.
 
 ## Datenmodell
 
+Schema: `api/internal/db/migrations/001_init.sql`, mit Midnightsports Aadorf als erstem Projekt.
+
 ```mermaid
 erDiagram
-    users ||--o{ sessions : "hat"
-    functions |o--o{ users : "Funktion im Team"
-    functions ||--o| emergency_access_functions : "Zugriff auf Notfallkontakte"
-    locations ||--o{ events : "findet statt in"
-    users |o--o{ events : "verantwortlich (leader_id)"
-    events ||--o{ event_staff : "Einsatz"
-    users ||--o{ event_staff : "eingeteilt"
-    functions ||--o{ event_staff : "Funktion beim Einsatz"
-    events ||--o{ registrations : "Anmeldungen"
-    users ||--o{ registrations : "meldet sich an"
+    users ||--o{ sessions : hat
+    users ||--o{ project_members : Mitglied
+    projects ||--o{ project_members : hat
+    projects ||--o{ functions : hat
+    projects ||--o{ locations : hat
+    projects ||--o{ events : hat
+    projects ||--o{ time_entries : hat
+    projects ||--o{ sanctions : "verwarnt / sperrt"
+    projects ||--o{ project_shares : "teilt mit"
+    projects ||--o{ emergency_access_roles : Notfallzugriff
+    functions ||--o| emergency_access_functions : Notfallzugriff
+    functions |o--o{ project_members : Funktion
+    locations ||--o{ events : Ort
+    events ||--o{ event_staff : Einsatz
+    events ||--o{ registrations : Anmeldungen
     events ||--o{ checkins : "vor Ort"
-    users |o--o{ checkins : "eingecheckt (NULL = gelöscht)"
-    events ||--o| reports : "Bericht"
-    users ||--o{ time_entries : "erfasst"
-    events |o--o{ time_entries : "optional zu Event"
+    events ||--o| reports : Bericht
+    users ||--o{ sanctions : betroffen
 
     users {
         uuid id PK
-        text email UK "NULL bei Gästen ohne Email"
+        text email UK
         text google_sub UK
         text apple_sub UK
         bool guest
+        bool global_admin
+        text profil "Name, Geburtsdatum, Adresse, Notfallkontakt"
+    }
+    projects {
+        int id PK
+        text slug UK "Kurzname in der URL"
+        text name
+        text region
+        bytea logo
+        int ban_days
+        text ban_action "entsperren, verwarnen"
+        int warning_days
+    }
+    project_members {
+        int project_id PK
+        uuid user_id PK
         text role "admin, projektleiter, mitarbeiter, teilnehmer"
         int function_id FK
-        text first_name
-        text last_name
-        date birth_date
-        text gender "w, m, d"
-        text status "schueler_aadorf, gast_extern, mitarbeiter"
-        text zip
-        text city
-        text emergency_name
-        text emergency_phone
-        text emergency_relation "vater, mutter, andere"
+        text status "schueler, gast_extern, mitarbeiter"
     }
-    sessions {
-        bytea token_hash PK "HMAC des Tokens"
-        uuid user_id FK
-        timestamptz expires_at
+    project_shares {
+        int project_id PK "fragt an"
+        int partner_id PK "willigt ein"
+        timestamptz consented_at "NULL = ausstehend"
+        timestamptz declined_at
     }
-    functions {
-        int id PK
-        text name UK "JC, JSC, SC, PL"
-        numeric salary "NULL = über Zeiterfassung"
-    }
-    emergency_access_roles {
-        text role PK "projektleiter, mitarbeiter"
-    }
-    emergency_access_functions {
-        int function_id PK, FK
-    }
-    locations {
-        int id PK
-        text name
-        text street
-        text zip
-        text city
-        bool is_default "genau ein Standardort"
-    }
-    events {
-        int id PK
-        timestamptz starts_at
-        timestamptz ends_at
-        int location_id FK
-        uuid leader_id FK
-        bool cancelled
-        uuid created_by FK
+    sanctions {
+        int project_id PK "auslösendes Projekt"
+        uuid user_id PK
+        text level "verwarnung, sperre"
+        text reason
+        timestamptz created_at "Beginn der Frist"
     }
     event_staff {
-        int event_id PK, FK
-        uuid user_id PK, FK
-        int function_id FK "beim Einteilen festgehalten"
-        numeric salary "beim Einteilen festgehalten"
-        bytea signature "PNG, Empfang bestätigt"
-        timestamptz signed_at
-        uuid signed_by FK
+        int event_id PK
+        uuid user_id PK
+        int function_id "beim Einteilen kopiert"
+        numeric salary "beim Einteilen kopiert"
+        bytea signature "Empfang bestätigt"
     }
-    registrations {
-        int event_id PK, FK
-        uuid user_id PK, FK
-        timestamptz created_at
-    }
-    checkins {
-        int id PK
-        int event_id FK
-        uuid user_id FK
-        timestamptz checked_in_at
-        uuid checked_in_by FK
-    }
-    reports {
-        int event_id PK, FK
-        text body
-        uuid author_id FK
-        timestamptz updated_at
-    }
-    time_entries {
-        int id PK
-        uuid user_id FK
-        date date
-        numeric hours
-        text description
-        int event_id FK
+    audit_log {
+        bigint id PK
+        uuid actor_id "ohne FK"
+        int project_id
+        text action
+        uuid target_user_id "ohne FK"
+        jsonb details
     }
 ```
 
-- **Gäste** sind normale Benutzer mit `guest = true`. Meldet sich jemand mit derselben Email über Google an, übernimmt er das Konto.
-- **Gelöschte Konten**: Check-ins bleiben mit `user_id = NULL` für die Statistik erhalten, alles andere wird gelöscht.
-- **Einsatz** (`event_staff`): Funktion und Betrag werden beim Einteilen kopiert, damit spätere Lohnänderungen vergangene Events nicht verändern. Die Unterschrift der Auszahlung gehört zur selben Zeile.
-- **Admins** haben immer Zugriff auf Notfallkontakte und stehen deshalb nicht in `emergency_access_roles`.
+## Regeln
+
+**Mandantentrennung**
+- Jede Abfrage in einem Projekt-Handler filtert nach `project_id` oder über einen Event des Projekts
+  (`loadEvent`, `projectEvent`, `projectMemberUser`). Daten anderer Projekte ergeben 404.
+- Orte und Funktionen haben Fremdschlüssel `(project_id, id)`: Events und Mitglieder können nur Orte und
+  Funktionen des eigenen Projekts verwenden.
+- Personen anderer Projekte werden nicht geladen, auch nicht ihr Name (z.B. beim Check-in per ID).
+- Nicht freigegebene Projekte (Teilen noch nicht eingewilligt) sind nur für globale Admins erreichbar, auch das Logo.
+
+**Personen**
+- Gäste: Person mit `guest = true`, Mitglied des Projekts. Login mit derselben Email übernimmt das Konto,
+  ebenso bei Projekt-Admins, die beim Onboarding per Email angelegt werden.
+- Löschen: Check-ins bleiben mit `user_id = NULL`, im Audit wird der Name durch „Gelöschtes Konto“ ersetzt.
+
+**Einsatz**: Funktion und Betrag werden beim Einteilen kopiert, spätere Lohnänderungen ändern vergangene Events nicht.
+
+**Verwarnungen und Sperren**
+- Eine pro Person und Projekt, eine neue ersetzt die bisherige.
+- Verwarnt: Check-in mit gelber Meldung. Gesperrt: kein Check-in, keine Event-Anmeldung.
+- Fristen des auslösenden Projekts werden beim Lesen angewendet (`effectiveSanction`).
+- Sichtbar im auslösenden Projekt und in Partnerprojekten mit Einwilligung, ändern nur im auslösenden.
+
+**Teilen**: Der globale Admin fragt beim Erstellen eines Projekts an. Bis jeder Partner-Admin eingewilligt hat,
+ist das neue Projekt nicht freigegeben. Abgelehnte Anfragen entfernt der globale Admin.
+
+**Audit** (`audit_log`, nur globale Admins): Einträge in derselben Transaktion wie die Änderung. Protokolliert:
+Notfallkontakt und Profil angesehen, Profil geändert (nur Feldnamen), Löschungen, Anmeldung bei Projekten,
+Rolle, Status, Funktion, Gäste, Verwarnungen und Fristen, Notfallzugriff, Exporte, Projekte, Teilen.
+Offen: rechtliche Prüfung (revDSG, DSGVO), Aufbewahrungsdauer, Einwilligung der Eltern unter 16.
 
 ## Abläufe
 
-### Anmeldung mit Google
-
-```mermaid
-sequenceDiagram
-    actor U as Benutzer
-    participant B as Browser (React)
-    participant S as Go-Server
-    participant G as Google
-    participant DB as PostgreSQL
-
-    U->>B: "Mit Google anmelden"
-    B->>S: GET /api/auth/login
-    S-->>B: Redirect zu Google + State-Cookie
-    B->>G: Anmeldung, Konto wählen
-    G-->>B: Redirect /api/auth/callback?code&state
-    B->>S: GET /api/auth/callback
-    S->>S: State prüfen
-    S->>G: Code gegen Token tauschen, Userinfo laden
-    G-->>S: sub, email, Name (Email verifiziert)
-    S->>DB: Benutzer über google_sub oder Email suchen, sonst anlegen
-    Note over S,DB: Gast mit derselben Email wird übernommen.<br/>Emails aus ADMIN_EMAIL werden Admin.
-    S->>DB: Session speichern (HMAC des Tokens)
-    S-->>B: Session-Cookie, Redirect /
-    B->>S: GET /api/me
-    S-->>B: Benutzer mit Rolle
-    alt Profil unvollständig
-        B->>U: Profilseite
-    else
-        B->>U: Events
-    end
-```
-
-Login mit Apple (optional) läuft gleich ab, mit diesen Unterschieden:
-
-- Apple schickt das Resultat per `POST /api/auth/apple/callback` (`form_post`) von `appleid.apple.com`.
-  Die Route ist deshalb vom CSRF-Schutz ausgenommen, State- und Nonce-Cookie sind `SameSite=None`
-- Statt PKCE bindet eine Nonce im `id_token` den Code an den Browser
-- Das Client-Secret ist ein JWT, das der Server bei jeder Anmeldung mit dem `.p8`-Schlüssel signiert
-- Statt Userinfo liefert das `id_token` vom Token-Endpunkt `sub` und Email, der Name kommt nur bei der ersten Anmeldung
-- Gesucht wird über `apple_sub` oder die Email. Gleiche Email wie bei Google: dasselbe Konto
-
-### Check-in per QR-Code
+### Anmeldung über den Projekt-Link
 
 ```mermaid
 sequenceDiagram
     actor T as Teilnehmer
-    actor M as Mitarbeiter
-    participant B as Browser (Scan-Seite)
-    participant S as Go-Server
-    participant DB as PostgreSQL
+    participant B as Browser
+    participant S as Server
 
-    T->>M: zeigt QR-Code (App oder Wallet)
-    M->>B: Kamera scannt Code
-    B->>S: POST /api/events/{id}/checkins {token}
-    S->>S: Rolle prüfen (Mitarbeiter, Projektleiter, Admin)
-    S->>S: Signatur des Tokens prüfen → Benutzer-ID
-    S->>DB: Event abgesagt?
-    S->>DB: Benutzer laden (inkl. Zugriff auf Notfallkontakte)
-    S->>DB: INSERT Check-in ON CONFLICT DO NOTHING<br/>RETURNING id, Zeit, angemeldet?
-    alt bereits eingecheckt
-        S->>DB: bestehenden Check-in lesen
-    end
-    S-->>B: Person, angemeldet, bereits eingecheckt
-    Note over S,B: Notfallkontakt nur mit Zugriff
-    B->>M: grün = eingecheckt, gelb = Hinweis
+    T->>B: /?projekt=pleno (QR-Code)
+    B->>B: Ziel /projekte/pleno merken
+    B->>S: Login mit Google oder Apple
+    S->>S: Person über sub oder Email suchen, sonst anlegen, Session
+    B->>B: Profil vollständig? dann zum gemerkten Ziel
+    T->>B: Status wählen, anmelden
+    B->>S: POST /api/projects/pleno/join
+    S->>S: Projekt freigegeben? Mitglied als Teilnehmer, Audit
 ```
 
-### Auszahlung mit Unterschrift
+### Check-in
 
 ```mermaid
 sequenceDiagram
-    actor PL as Projektleiter
-    actor C as Coach
-    participant B as Browser (Auszahlung)
-    participant S as Go-Server
-    participant DB as PostgreSQL
+    actor M as Mitarbeiter
+    participant B as Scan-Seite
+    participant S as Server
 
-    PL->>B: Event → "Auszahlung"
-    B->>S: GET /api/events/{id}/payout
-    S->>DB: Einsatz mit Betrag und Unterschrift
-    S-->>B: Liste
-    PL->>C: übergibt Betrag und Gerät
-    C->>B: unterschreibt im Feld, "Empfang bestätigen"
-    B->>S: PUT /api/events/{id}/payout/{userId} {PNG}
-    S->>S: PNG prüfen (Format, max. 512 KB)
-    S->>DB: UPDATE … WHERE signature IS NULL
-    alt bereits unterschrieben
-        S-->>B: 409 Empfang bereits bestätigt
+    M->>B: QR-Code scannen
+    B->>S: POST /api/p/{project}/events/{id}/checkins {token}
+    S->>S: Rolle im Projekt, Token prüfen, Event des Projekts
+    S->>S: Mitglied des Projekts? Sonst Fehler ohne Name
+    S->>S: Verwarnungen und Sperren (eigene und geteilte)
+    alt gesperrt
+        S-->>B: blocked, Grund
     else
-        S-->>B: 204
+        S-->>B: eingecheckt, Person, Verwarnung
     end
-    PL->>B: "Drucken"
-    B->>PL: Spesenblatt (Druckansicht, als PDF speicherbar)
+    B->>M: grün, gelb (verwarnt) oder rot (gesperrt)
 ```
+
+## Migration der bestehenden Daten (offen)
+
+Auf `feat/multitenancy` ist das Schema neu. Die Übernahme der Produktion wird nach dem Merge geplant:
+alle Daten zu Aadorf, `users.role/function_id/status` zu `project_members` (`schueler_aadorf` zu `schueler`),
+`ADMIN_EMAIL` zu globalen Admins. Vorgehen und Test mit einem PITR-Klon noch zu entscheiden.
 
 ## Leistung
 
-Bei der Optimierung berücksichtigte Punkte, damit sie bei Änderungen erhalten bleiben:
-
-- **IDs direkt vergleichen**: Benutzer-IDs werden in SQL mit der uuid-Spalte verglichen (`id = $1`), nie als Text (`id::text = $1`), sonst kann Postgres den Index nicht nutzen. Ungültige IDs fängt `validUUID` vorher ab.
-- **Index `checkins (event_id)`**: wird von Eventliste, Teilnehmerliste und Bericht verwendet. Der Unique-Index auf `(event_id, user_id)` gilt nur für Zeilen mit Benutzer und hilft hier nicht.
-- **Einsatz speichern**: alle gewählten Personen in einer Abfrage laden, die Einträge als Batch schreiben.
-- **Frontend**: Dateien in `/assets/` werden einmal komprimiert (gzip) und im Speicher gehalten, der Browser speichert sie dauerhaft. Die QR-Seiten (Scanner, QR-Code) werden erst bei Bedarf geladen.
+- Pro Projekt-Request zwei Abfragen: Session und Mitgliedschaft (`loadMember`).
+- Verwarnungen einer Liste in einer Abfrage (`visibleSanctions`), Einsatz als Batch.
+- UUIDs direkt vergleichen (`id = $1`), nie `id::text`, sonst kein Index.
+- `/assets/` einmal gzip-komprimiert und dauerhaft gecacht, QR-Seiten und Administration erst bei Bedarf geladen.

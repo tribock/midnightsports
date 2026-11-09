@@ -1,7 +1,6 @@
 import { useEffect, useState, type FormEvent } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import {
-  api,
   errorMessage,
   type Event,
   type EventInput,
@@ -10,12 +9,13 @@ import {
   type StaffEntry,
   type TeamMember,
 } from '../api'
-import { isProjectLead, useAuth } from '../auth'
+import { isProjectLead } from '../auth'
 import { formatCHF, roleLabels, todayISO } from '../format'
+import { useProject } from '../project'
 
 export default function EventFormPage() {
   const { id } = useParams()
-  const { user } = useAuth()
+  const { api, base, member: user } = useProject()
   const navigate = useNavigate()
   const canStaff = isProjectLead(user)
   const [locations, setLocations] = useState<Location[]>([])
@@ -65,7 +65,7 @@ export default function EventFormPage() {
         }
       })
       .catch((err) => setError(errorMessage(err)))
-  }, [id, canStaff, user])
+  }, [api, id, canStaff, user])
 
   // Verantwortlich sein können Projektleiter und Admins
   const leaders = team.filter(isProjectLead)
@@ -107,7 +107,7 @@ export default function EventFormPage() {
     }
     try {
       const saved = id ? await api.put<Event>(`/events/${id}`, body) : await api.post<Event>('/events', body)
-      navigate(`/events/${saved.id}`)
+      navigate(`${base}/events/${saved.id}`)
     } catch (err) {
       setError(errorMessage(err))
     }

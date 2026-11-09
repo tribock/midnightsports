@@ -12,11 +12,19 @@ export VERSION BUILD_DATE
 
 IMAGE ?= docker.io/tribock/midnightsports
 
+# Lokale Container pro Branch: Compose-Projekt (Container, Datenbank-Volume, Netzwerk) heisst auf main
+# "midnightsports", auf anderen Branches z.B. "midnightsports-feat-multitenancy". So bleiben die Testdaten
+# jedes Branches beim Wechseln erhalten. Mit COMPOSE_PROJECT_NAME=... überschreibbar.
+BRANCH := $(shell git rev-parse --abbrev-ref HEAD 2>/dev/null)
+BRANCH_SUFFIX := $(if $(filter-out main HEAD,$(BRANCH)),-$(shell printf '%s' '$(BRANCH)' | tr 'A-Z' 'a-z' | tr -c 'a-z0-9' '-'))
+COMPOSE_PROJECT_NAME ?= midnightsports$(BRANCH_SUFFIX)
+export COMPOSE_PROJECT_NAME
+
 # Google Cloud (Demo und Produktion), können in .env überschrieben werden
 GCP_PROJECT_ID ?= midnightsports
 GCP_REGION ?= europe-west6
 
-.PHONY: run down db db-reset dev test build version demo-yaml deploy-demo deploy-yaml deploy instances logos
+.PHONY: run down db db-reset psql containers dev test build version demo-yaml demo-yaml-check deploy-demo deploy-yaml deploy-yaml-check deploy instances logos
 
 ## run: App und PostgreSQL in Docker starten (http://localhost:8080)
 run:
@@ -30,14 +38,30 @@ down:
 db:
 	docker compose up -d --wait postgres
 
-## db-reset: Datenbank löschen und neu anlegen
+## db-reset: Datenbank des aktuellen Branches löschen und neu anlegen
 db-reset:
 	docker compose down -v
 	$(MAKE) db
 
+## psql: Mit der Datenbank des aktuellen Branches verbinden
+psql: db
+	docker compose exec postgres psql -U midnightsports
+
+## containers: Compose-Projekte aller Branches anzeigen (Branch samt Daten entfernen: docker compose -p <name> down -v)
+containers:
+	@echo "Aktuell: $(COMPOSE_PROJECT_NAME)"
+	@docker compose ls -a --filter name=midnightsports
+	@docker volume ls --filter name=midnightsports
+
 ## dev: Backend und Frontend mit Hot Reload starten (http://localhost:5173)
+# Pfade in .env gelten für den Container (make run mountet ./secrets nach /secrets). Das Backend von make dev
+# läuft direkt auf dem Rechner: *_FILE=/secrets/... zeigt dort auf den Ordner secrets/ im Projekt.
+# Gesetzte Umgebungsvariablen haben Vorrang vor .env (config.Load).
+DEV_SECRETS = eval "$$(sed -n 's\#^\([A-Z_]*_FILE\)=["'"'"']\{0,1\}/secrets/\([^"'"'"']*\).*\#export \1=$(CURDIR)/secrets/\2\#p' .env 2>/dev/null)"
+
 dev: db web/node_modules
 	@trap 'kill 0' INT TERM EXIT; \
+	$(DEV_SECRETS); \
 	(cd api && go run -ldflags "$(LDFLAGS)" ./cmd/server) & \
 	(cd web && npm run dev) & \
 	wait
@@ -75,7 +99,8 @@ endef
 define DEMO_ENV
 $(DEPLOY_ENV); \
 export DEMO_GOOGLE_CLIENT_ID="$${DEMO_GOOGLE_CLIENT_ID:-$$oauth_client_id}"; \
-require GCP_PROJECT_NUMBER DEMO_GOOGLE_CLIENT_ID ADMIN_EMAIL GOOGLE_WALLET_ISSUER_ID
+require GCP_PROJECT_NUMBER DEMO_GOOGLE_CLIENT_ID ADMIN_EMAIL GOOGLE_WALLET_ISSUER_ID \
+	PROD_APPLE_TEAM_ID PROD_APPLE_PASS_TYPE_ID PROD_APPLE_LOGIN_CLIENT_ID PROD_APPLE_LOGIN_KEY_ID
 endef
 
 # Variablen für build/deploy/deploy.yaml (Produktion). PROD_URL: eigene Domain, sonst die Adresse von Cloud Run
@@ -85,19 +110,30 @@ export SERVICE="$${SERVICE:-midnightsports}"; \
 export DB_INSTANCE="$${DB_INSTANCE:-midnightsports-db}"; \
 export PROD_GOOGLE_CLIENT_ID="$${PROD_GOOGLE_CLIENT_ID:-$$oauth_client_id}"; \
 export PROD_URL="$${PROD_URL:-https://$$SERVICE-$$GCP_PROJECT_NUMBER.$$GCP_REGION.run.app}"; \
-require GCP_PROJECT_NUMBER PROD_GOOGLE_CLIENT_ID ADMIN_EMAIL GOOGLE_WALLET_ISSUER_ID
+require GCP_PROJECT_NUMBER PROD_GOOGLE_CLIENT_ID ADMIN_EMAIL GOOGLE_WALLET_ISSUER_ID \
+	PROD_APPLE_TEAM_ID PROD_APPLE_PASS_TYPE_ID PROD_APPLE_LOGIN_CLIENT_ID PROD_APPLE_LOGIN_KEY_ID
 endef
 
-# Nur diese Platzhalter ersetzen, alle anderen $-Zeichen bleiben unverändert
-DEPLOY_SUBST := $$GCP_PROJECT_ID $$GCP_REGION $$GCP_PROJECT_NUMBER $$RUN_IMAGE $$IMAGE_TAG $$DEPLOY_LABEL $$ADMIN_EMAIL $$GOOGLE_WALLET_ISSUER_ID $$APPLE_TEAM_ID
-DEMO_SUBST := $(DEPLOY_SUBST) $$DEMO_GOOGLE_CLIENT_ID $$DEMO_APPLE_LOGIN_CLIENT_ID $$DEMO_APPLE_LOGIN_KEY_ID
-PROD_SUBST := $(DEPLOY_SUBST) $$SERVICE $$DB_INSTANCE $$PROD_URL $$PROD_GOOGLE_CLIENT_ID $$APPLE_PASS_TYPE_ID $$PROD_APPLE_LOGIN_CLIENT_ID $$PROD_APPLE_LOGIN_KEY_ID
+# Nur diese Platzhalter ersetzen, alle anderen $-Zeichen bleiben unverändert.
+# Apple (Wallet und Login) verwenden Demo und Produktion gemeinsam: PROD_APPLE_* aus .env
+DEPLOY_SUBST := $$GCP_PROJECT_ID $$GCP_REGION $$GCP_PROJECT_NUMBER $$RUN_IMAGE $$IMAGE_TAG $$DEPLOY_LABEL $$ADMIN_EMAIL \
+	$$GOOGLE_WALLET_ISSUER_ID $$PROD_APPLE_TEAM_ID $$PROD_APPLE_PASS_TYPE_ID $$PROD_APPLE_LOGIN_CLIENT_ID $$PROD_APPLE_LOGIN_KEY_ID
+DEMO_SUBST := $(DEPLOY_SUBST) $$DEMO_GOOGLE_CLIENT_ID
+PROD_SUBST := $(DEPLOY_SUBST) $$SERVICE $$DB_INSTANCE $$PROD_URL $$PROD_GOOGLE_CLIENT_ID
+
+# Bricht ab, wenn in der fertigen Konfiguration $(1) ein Platzhalter übrig ist (z.B. Variable nicht in *_SUBST).
+# Kommentare zählen nicht.
+define CHECK_RENDERED
+left=$$(grep -v '^[[:space:]]*#' $(1) | grep -o '[$$]{[A-Za-z_]*}' | sort -u | tr '\n' ' '); \
+[ -z "$$left" ] || { echo "Nicht ersetzt: $$left(Makefile, DEPLOY_SUBST)" >&2; exit 1; }
+endef
 
 # Ersetzt die Platzhalter in $(1) mit $(2), deployt Service $(3) und prüft, dass er erreichbar ist.
 # services replace setzt keine Berechtigungen: ohne allUsers als Invoker antwortet Cloud Run mit 403
 define REPLACE_SERVICE
 dir=$$(mktemp -d); trap 'rm -rf "$$dir"' EXIT; \
 envsubst '$(2)' < $(1) > "$$dir/service.yaml"; \
+$(call CHECK_RENDERED,"$$dir/service.yaml"); \
 echo "Deploy $$RUN_IMAGE:$$IMAGE_TAG ($$GCP_PROJECT_ID, $$GCP_REGION)"; \
 gcloud run services replace "$$dir/service.yaml" --region="$$GCP_REGION" --project="$$GCP_PROJECT_ID" && \
 gcloud run services add-iam-policy-binding "$(3)" --region="$$GCP_REGION" --project="$$GCP_PROJECT_ID" \
@@ -111,20 +147,30 @@ done; \
 echo "Nicht erreichbar: $$url/api/health antwortet mit $$status" >&2; exit 1
 endef
 
-## demo-yaml: Demo-Konfiguration mit Werten aus .env ausgeben (zur Kontrolle)
+## demo-yaml: Demo-Konfiguration mit Werten aus .env ausgeben und prüfen (zur Kontrolle)
 demo-yaml:
-	@$(DEMO_ENV); envsubst '$(DEMO_SUBST)' < build/deploy/demo.yaml
+	@$(DEMO_ENV); f=$$(mktemp); trap 'rm -f "$$f"' EXIT; envsubst '$(DEMO_SUBST)' < build/deploy/demo.yaml > "$$f"; \
+	$(call CHECK_RENDERED,"$$f"); cat "$$f"
 
-## deploy-demo: Image bauen und Demo auf Cloud Run deployen
-deploy-demo: build
+## deploy-demo: prüfen, Image bauen und Demo auf Cloud Run deployen
+deploy-demo: demo-yaml-check build
 	@$(DEMO_ENV); $(call REPLACE_SERVICE,build/deploy/demo.yaml,$(DEMO_SUBST),midnightsports-demo)
 
-## deploy-yaml: Produktions-Konfiguration mit Werten aus .env ausgeben (zur Kontrolle)
-deploy-yaml:
-	@$(PROD_ENV); envsubst '$(PROD_SUBST)' < build/deploy/deploy.yaml
+demo-yaml-check:
+	@$(MAKE) -s demo-yaml > /dev/null && echo "Demo-Konfiguration geprüft"
 
-## deploy: Image bauen und Produktion auf Cloud Run deployen
-deploy: build
+## deploy-yaml: Produktions-Konfiguration mit Werten aus .env ausgeben und prüfen (zur Kontrolle)
+deploy-yaml:
+	@$(PROD_ENV); f=$$(mktemp); trap 'rm -f "$$f"' EXIT; envsubst '$(PROD_SUBST)' < build/deploy/deploy.yaml > "$$f"; \
+	$(call CHECK_RENDERED,"$$f"); cat "$$f"
+
+deploy-yaml-check:
+	@[ ! -f api/internal/db/migrations/900_demo_daten.sql ] || \
+		{ echo "Demo-Daten im Migrationsordner: vor dem Produktions-Deploy entfernen" >&2; exit 1; }
+	@$(MAKE) -s deploy-yaml > /dev/null && echo "Produktions-Konfiguration geprüft"
+
+## deploy: prüfen, Image bauen und Produktion auf Cloud Run deployen
+deploy: deploy-yaml-check build
 	@$(PROD_ENV); $(call REPLACE_SERVICE,build/deploy/deploy.yaml,$(PROD_SUBST),$$SERVICE)
 
 ## logos: Logos und Icons aus docs/logo/*.eps erzeugen (braucht python3 und rsvg-convert, brew install librsvg)

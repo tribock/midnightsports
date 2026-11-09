@@ -35,6 +35,10 @@ var testPass = Pass{
 }
 
 func TestNotConfigured(t *testing.T) {
+	// Team ID allein (Login mit Apple ohne Wallet): Wallet aus, kein Fehler
+	if a, err := NewApple("", "ABCDE12345", ""); a != nil || err != nil {
+		t.Errorf("Apple nur mit Team ID: %v, %v", a, err)
+	}
 	if a, err := NewApple("", "", ""); a != nil || err != nil {
 		t.Errorf("Apple: %v, %v", a, err)
 	}

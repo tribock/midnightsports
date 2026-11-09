@@ -1,54 +1,72 @@
 # Anforderungen und Stand
 
-Anforderungen des Auftraggebers und ihr Umsetzungsstand. Grundlage ist das Dokument „Anpassungen“
-(`docs/Anpassungen.docx`, wegen Kundendaten nicht im Repository) sowie Absprachen während der Umsetzung.
-Bei neuen Anforderungen diese Liste nachführen.
+Anforderungen des Auftraggebers und ihr Stand. Grundlage: `docs/Anpassungen.docx` (nicht im Repository) und
+Absprachen. Bei neuen Anforderungen nachführen.
 
-Legende: ✅ umgesetzt · 🟡 teilweise / bewusst anders · ⬜ offen · ⛔ bewusst nicht umgesetzt
+Stand: **ja** umgesetzt, **teilweise**, **offen**, **nein** bewusst nicht umgesetzt.
 
-## Anmeldung und Profil
-
-| Anforderung | Stand | Umsetzung |
-|---|---|---|
-| Notfallkontakt-Beziehung als Dropdown (Vater/Mutter/Andere) | ✅ | `emergency_relation` |
-| Geschlecht als Dropdown (W/M/D) | ✅ | `gender` |
-| Status als Dropdown | ✅ | `schueler_aadorf`, `gast_extern`, `mitarbeiter`. Mitarbeiter vergeben nur Admins (Benutzer → Stift) |
-| PLZ und Ort als Dropdown, Externe mit freiem Feld | ⛔ | Freie Eingabe, Mischung aus Dropdown und Freitext nicht empfohlen |
-| Freies Feld für die Klasse | ⛔ | Datenminimierung |
-| Strasse und Nummer raus | 🟡 | Feld ist freiwillig |
-| Apple ID als Login | ✅ | Optional, braucht ein Apple-Developer-Konto (ca. CHF 100/Jahr), siehe `docs/zugangsdaten.md` |
-
-## Rollen, Team und Einsatz
+## Profil und Anmeldung
 
 | Anforderung | Stand | Umsetzung |
 |---|---|---|
-| Rollen Admin, Projektleiter, Mitarbeiter, Teilnehmer | ✅ | PL: wie MA plus Bericht und Zeiterfassung |
-| Funktionen mit Lohn pro Einsatz (JC 20, JSC 40, SC 80, PL über Zeiterfassung) | ✅ | Administration → Funktionen |
-| Arbeitsgruppe (Team) am Event definieren, nur PL | ✅ | Event bearbeiten → Team. Der verantwortliche PL ist automatisch dabei |
-| Auszahlung: alle eingeteilten Personen, Empfang mit handschriftlicher Unterschrift | ✅ | Event → Auszahlung |
-| Auszahlung drucken: Name, Funktion, Betrag, Unterschrift | ✅ | Spesenblatt nach Vorlage `docs/Auszahlung.jpeg` (Papierformular von IdéeSport), mit eigenem Logo |
-| Abendspesen: Name Coach, Unterschrift, Coachart mit Lohn, Total, druckbar | ✅ | Durch die Auszahlung abgedeckt |
-| Spalten „Hintergrund Stunden“, „Reise Tageskurs“ der Papiervorlage | ⬜ | Keine Daten in der App, bei Bedarf als leere Spalten ergänzen |
+| Geschlecht und Beziehung zum Notfallkontakt als Auswahl | ja | W/M/D, Vater/Mutter/Andere |
+| Status als Auswahl | ja | Pro Projekt beim Anmelden: Schüler-/in aus der Region, Gast extern. Mitarbeiter vergeben Projekt-Admins |
+| PLZ und Ort als Auswahl | nein | Freie Eingabe |
+| Feld für die Klasse | nein | Datenminimierung |
+| Strasse und Nummer entfernen | teilweise | Freiwillig |
+| Login mit Apple | ja | Braucht Apple-Developer-Konto (ca. CHF 100/Jahr) |
 
-## Events, Berichte, Zeiterfassung
-
-| Anforderung | Stand | Umsetzung |
-|---|---|---|
-| Bericht zum Event: Datum, Ort, PL, Teilnehmer (W/M/D), anwesendes Team mit Funktion, Bericht, druckbar | ✅ | Event → Bericht drucken |
-| Zeiterfassung: Admin bestätigt verrechnete Zahlungen mit Häkchen | ⬜ | Noch nicht umgesetzt |
-
-## Benutzer und Notfallkontakte
+## Rollen, Team, Auszahlung
 
 | Anforderung | Stand | Umsetzung |
 |---|---|---|
-| Button „Notfallkontakt abrufen“ nur für berechtigte Personen | ✅ | Admins legen Rollen und Funktionen fest, Admins immer, Teilnehmer nie |
-| Gast wird als Benutzer gespeichert, gleiche Angaben, Email freiwillig | ✅ | `users.guest`. Meldet sich der Gast später mit der Email an, übernimmt er das Konto |
-| Admins können Benutzer löschen | ✅ | Check-ins bleiben anonymisiert |
-| Admins können Benutzer bearbeiten, z.B. Email für Gäste ergänzen | ✅ | Benutzer → Stift |
+| Rollen Admin, Projektleiter, Mitarbeiter, Teilnehmer | ja | Pro Projekt |
+| Events erfassen nur durch Projektleiter und Admins | ja | Mitarbeiter checken ein und erfassen Gäste |
+| Funktionen mit Lohn pro Einsatz (JC, JSC, SC, PL über Zeiterfassung) | ja | Pro Projekt, Administration |
+| Team am Event, nur PL | ja | Verantwortlicher PL automatisch dabei |
+| Auszahlung mit Unterschrift, druckbar | ja | Spesenblatt nach Papiervorlage |
+| Spalten „Hintergrund Stunden“, „Reise Tageskurs“ | offen | Keine Daten in der App |
+
+## Events und Zeiterfassung
+
+| Anforderung | Stand | Umsetzung |
+|---|---|---|
+| Bericht zum Event, druckbar | ja | Datum, Ort, PL, Teilnehmer W/M/D, Team, Text |
+| Admin bestätigt verrechnete Zeiteinträge | offen | |
+
+## Personen und Notfallkontakte
+
+| Anforderung | Stand | Umsetzung |
+|---|---|---|
+| Notfallkontakt nur für Berechtigte | ja | Projekt-Admins legen Rollen und Funktionen fest, jeder Abruf protokolliert |
+| Gast als Person mit gleichen Angaben, Email freiwillig | ja | Übernimmt beim Login mit derselben Email das Konto |
+| Personen bearbeiten und löschen | ja | Nur globale Admins, protokolliert. Check-ins bleiben anonymisiert |
+
+## Mandantenfähigkeit (Branch `feat/multitenancy`)
+
+| Anforderung | Stand | Umsetzung |
+|---|---|---|
+| Startseite: Login, dann Projekt aus eigenen Projekten wählen | ja | Auch in der Kopfzeile |
+| „Nach Projekten suchen“ mit Volltextsuche | ja | Name, Region, Beschreibung |
+| Midnightsports Aadorf als erstes Projekt | ja | Im Schema angelegt |
+| Globale Administration: Projekte erfassen | ja | Name, Logo, Projekt-Admin, Funktionen, erster Ort |
+| Logo hochladen, sonst Standardlogo | ja | PNG, JPEG, WebP bis 512 KB, kein SVG |
+| Seite Benutzer heisst Teilnehmer | ja | Nur Mitglieder des Projekts |
+| Personen global, in der globalen Administration unter Benutzer | ja | |
+| Projekt-Link per QR-Code führt zum Projekt | ja | `/?projekt=<kurzname>`, auch über den Login |
+| Funktionsbezeichnungen beim Erstellen festlegen | ja | |
+| Projekt-Admin sieht nur Personen seines Projekts | ja | |
+| Anmeldung beim Projekt nur über Startseite oder Projekt-Link | ja | Nichtmitglieder werden nicht eingecheckt |
+| Änderungen an Personen nur durch globale Admins, im Audit | ja | |
+| Gesetzlich relevante Vorgänge im Audit | teilweise | Umgesetzt, rechtliche Prüfung und Aufbewahrungsdauer offen |
+| Verwarnen und sperren, auch am Event | ja | Meldung beim Check-in, gesperrt: kein Check-in |
+| Fristen für Sperren und Verwarnungen | ja | Pro Projekt |
+| Verwarnungen nur im auslösenden Projekt sichtbar | ja | |
+| Teilen zwischen zwei Projekten, blockiert bis zur Einwilligung | ja | |
+| Datenmigration der Produktion | offen | Nach dem Merge |
 
 ## Plattform
 
-| Anforderung | Stand | Bemerkung |
+| Anforderung | Stand | Umsetzung |
 |---|---|---|
-| Mandantenfähigkeit (mehrere Projekte, z.B. extern/Pleno und MAAD) | ⬜ | Grösserer Umbau: Berechtigungskonzept, evtl. Identity Provider (z.B. Zitadel), ca. 2–4 Tage |
-| Hosting intern (z.B. NAS) | ⬜ | Möglich, nicht empfohlen. Aktuell Cloud Run |
+| Hosting intern (z.B. NAS) | offen | Möglich, nicht empfohlen. Aktuell Cloud Run |

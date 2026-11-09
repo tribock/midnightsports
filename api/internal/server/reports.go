@@ -24,8 +24,8 @@ type genderCount struct {
 }
 
 // getReport liefert den Bericht eines Events. Die Teilnehmerzahlen werden immer aktuell berechnet.
-func (s *Server) getReport(w http.ResponseWriter, r *http.Request, u *User) error {
-	id, err := pathInt(r, "id")
+func (s *Server) getReport(w http.ResponseWriter, r *http.Request, m *Member) error {
+	id, err := s.projectEvent(r, m)
 	if err != nil {
 		return err
 	}
@@ -55,8 +55,8 @@ func (s *Server) getReport(w http.ResponseWriter, r *http.Request, u *User) erro
 	return nil
 }
 
-func (s *Server) saveReport(w http.ResponseWriter, r *http.Request, u *User) error {
-	id, err := pathInt(r, "id")
+func (s *Server) saveReport(w http.ResponseWriter, r *http.Request, m *Member) error {
+	id, err := s.projectEvent(r, m)
 	if err != nil {
 		return err
 	}
@@ -67,12 +67,12 @@ func (s *Server) saveReport(w http.ResponseWriter, r *http.Request, u *User) err
 	_, err = s.db.Exec(r.Context(),
 		`INSERT INTO reports (event_id, body, author_id) VALUES ($1, $2, $3)
 		 ON CONFLICT (event_id) DO UPDATE SET body = $2, author_id = $3, updated_at = now()`,
-		id, req.Body, u.ID)
+		id, req.Body, m.ID)
 	if isForeignKeyViolation(err) {
 		return errNotFound
 	}
 	if err != nil {
 		return err
 	}
-	return s.getReport(w, r, u)
+	return s.getReport(w, r, m)
 }

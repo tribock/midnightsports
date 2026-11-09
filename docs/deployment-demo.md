@@ -46,17 +46,15 @@ Die Vorlage [build/deploy/demo.yaml](../build/deploy/demo.yaml) enthält Platzha
 |---|---|---|
 | `ADMIN_EMAIL` | ja | Admins der Demo, komma-getrennt |
 | `GOOGLE_WALLET_ISSUER_ID` | ja | Issuer ID aus der Google Pay & Wallet Console |
-| `APPLE_TEAM_ID` | nein | Team ID des Apple-Developer-Kontos |
-| `DEMO_APPLE_LOGIN_CLIENT_ID` | nein | Services ID für den Login mit Apple, z.B. `ch.midnightsports.login` |
-| `DEMO_APPLE_LOGIN_KEY_ID` | nein | Key ID des Schlüssels in `apple-login-key` |
+| `PROD_APPLE_TEAM_ID`, `PROD_APPLE_PASS_TYPE_ID`, `PROD_APPLE_LOGIN_CLIENT_ID`, `PROD_APPLE_LOGIN_KEY_ID` | ja | Apple Wallet (Secret `apple-pass-pem`) und Login mit Apple (Secret `apple-login-key`), dieselben Werte wie die Produktion |
 | `DEMO_GOOGLE_CLIENT_ID` | nein | OAuth Client der Demo, Standard: aus `secrets/midnightsports.json` |
 | `GCP_PROJECT_ID` | nein | Standard: `midnightsports` |
 | `GCP_REGION` | nein | Standard: `europe-west6` |
 | `GCP_PROJECT_NUMBER` | nein | Standard: wird mit `gcloud` ermittelt |
 
 Die übrigen Werte aus `.env` (z.B. `GOOGLE_CLIENT_ID` des lokalen OAuth Clients) werden nicht verwendet.
-Die Apple-Werte haben das Präfix `DEMO_`, weil `APPLE_LOGIN_*` in `.env` den lokalen Start verhindern würde
-(Apple braucht HTTPS).
+Die Apple-Werte haben das Präfix `PROD_`, weil `APPLE_LOGIN_*` in `.env` den lokalen Start verhindern würde
+(Apple braucht HTTPS). `make demo-yaml` und `make deploy-demo` brechen ab, wenn ein Platzhalter nicht ersetzt wurde.
 
 Kontrolle der fertigen Konfiguration (wird nur angezeigt, nicht deployt):
 
@@ -64,7 +62,20 @@ Kontrolle der fertigen Konfiguration (wird nur angezeigt, nicht deployt):
 make demo-yaml
 ```
 
-## 2. Deployen
+## 2. Demo-Daten (optional)
+
+[api/internal/db/demo/900_demo_daten.sql](../api/internal/db/demo/900_demo_daten.sql) legt 4 Projekte mit je 350 erfundenen Mitgliedern an
+(die Hälfte auch in einem zweiten Projekt), mit Team, Funktionen und einem Event pro Freitag bis Ende des nächsten Jahres. Für einen Demo-Build mit diesen Daten:
+
+```sh
+cp api/internal/db/demo/900_demo_daten.sql api/internal/db/migrations/
+make deploy-demo
+rm api/internal/db/migrations/900_demo_daten.sql
+```
+
+Die Kopie ist in `.gitignore`, und `make deploy` (Produktion) bricht ab, solange sie im Migrationsordner liegt.
+
+## 3. Deployen
 
 ```sh
 make deploy-demo
@@ -94,9 +105,8 @@ Erklärungen zur Vorlage:
 - Nur der Container `app` hat einen Port und ist von aussen erreichbar
 - Das Datenbank-Passwort ist fest, weil PostgreSQL nur innerhalb der Instanz erreichbar ist
 
-Login mit Apple aktivieren: in der Vorlage die Blöcke `# Optional: Login mit Apple` an allen drei Stellen
-(`env`, `volumeMounts`, `volumes`) einkommentieren und im `Makefile` bei `DEMO_ENV` die Variablen `APPLE_TEAM_ID`,
-`DEMO_APPLE_LOGIN_CLIENT_ID` und `DEMO_APPLE_LOGIN_KEY_ID` unter `require` ergänzen.
+Apple Wallet und Login mit Apple sind aktiv. In der Services ID bei Apple die Domain `midnightsports-demo-<PROJEKTNUMMER>.europe-west6.run.app`
+und die Return URL `…/api/auth/apple/callback` eintragen, sonst lehnt Apple die Anmeldung in der Demo ab.
 
 Ohne Google Wallet: in der Vorlage `GOOGLE_WALLET_KEY_FILE`, `GOOGLE_WALLET_ISSUER_ID`, das Volume `google-wallet` und den `volumeMounts`-Eintrag beim Container `app` entfernen.
 

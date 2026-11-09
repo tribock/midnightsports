@@ -160,7 +160,7 @@ func (s *Server) logout(w http.ResponseWriter, r *http.Request) {
 
 // upsertUser sucht den Benutzer über die ID des Login-Anbieters (Spalte idColumn) oder die Email
 // und legt ihn bei Bedarf an. So kann sich dieselbe Person mit Google und Apple anmelden, wenn die Email gleich ist.
-// Die Emails aus ADMIN_EMAIL erhalten immer die Rolle Admin.
+// Die Emails aus ADMIN_EMAIL sind immer globale Admins.
 func (s *Server) upsertUser(ctx context.Context, idColumn, sub, email, firstName, lastName string) (string, error) {
 	if idColumn != googleID && idColumn != appleID {
 		return "", errors.New("unbekannter Login-Anbieter: " + idColumn)
@@ -182,15 +182,19 @@ func (s *Server) upsertUser(ctx context.Context, idColumn, sub, email, firstName
 			`INSERT INTO users (email, `+idColumn+`, first_name, last_name) VALUES ($1, $2, $3, $4) RETURNING id`,
 			email, providerID, firstName, lastName).Scan(&id)
 	case err == nil:
+		// Vom globalen Admin angelegte Personen (Projekt-Admin) haben noch keinen Namen
 		_, err = s.db.Exec(ctx,
-			`UPDATE users SET email = $2, `+idColumn+` = COALESCE(`+idColumn+`, $3), guest = false WHERE id = $1`,
-			id, email, providerID)
+			`UPDATE users SET email = $2, `+idColumn+` = COALESCE(`+idColumn+`, $3), guest = false,
+			 first_name = CASE WHEN first_name = '' THEN $4 ELSE first_name END,
+			 last_name = CASE WHEN last_name = '' THEN $5 ELSE last_name END
+			 WHERE id = $1`,
+			id, email, providerID, firstName, lastName)
 	}
 	if err != nil {
 		return "", err
 	}
 	if slices.Contains(s.cfg.AdminEmail, email) {
-		_, err = s.db.Exec(ctx, `UPDATE users SET role = 'admin' WHERE id = $1`, id)
+		_, err = s.db.Exec(ctx, `UPDATE users SET global_admin = true WHERE id = $1`, id)
 	}
 	return id, err
 }

@@ -222,13 +222,13 @@ Apple Wallet und Login mit Apple sind in der Vorlage auskommentiert. Zum Aktivie
    | Login mit Apple | [Zugangsdaten](zugangsdaten.md#8-login-mit-apple-optional) | `gcloud secrets create apple-login-key --data-file=secrets/apple-login.p8` |
 
 2. Werte in `.env` setzen:
-   - Apple Wallet: `APPLE_PASS_TYPE_ID`, `APPLE_TEAM_ID`
-   - Login mit Apple: `APPLE_TEAM_ID`, `PROD_APPLE_LOGIN_CLIENT_ID`, `PROD_APPLE_LOGIN_KEY_ID`.
+   - Apple Wallet: `PROD_APPLE_PASS_TYPE_ID`, `PROD_APPLE_TEAM_ID`
+   - Login mit Apple: `PROD_APPLE_TEAM_ID`, `PROD_APPLE_LOGIN_CLIENT_ID`, `PROD_APPLE_LOGIN_KEY_ID`.
      In der Services ID bei Apple die Domain von `PROD_URL` und die Return URL `<PROD_URL>/api/auth/apple/callback` eintragen
 3. In [build/deploy/deploy.yaml](../build/deploy/deploy.yaml) die Blöcke `# Optional: <Funktion>` an allen drei Stellen
    (`env`, `volumeMounts`, `volumes`) einkommentieren.
    `APPLE_TEAM_ID` nur einmal aufführen, wenn Apple Wallet und Login mit Apple aktiv sind
-4. `make deploy-yaml` kontrollieren, dann `make deploy`
+4. `make deploy-yaml` kontrollieren, dann `make deploy`. Beide brechen ab, wenn ein Platzhalter nicht ersetzt wurde
 
 ## Neue Version deployen
 
@@ -242,7 +242,21 @@ make deploy
   schreibt die Version in die App und deployt es mit der Vorlage
 - Die laufende Version steht unten auf jeder Seite und unter `/api/version`
 - Jede Version hat einen eigenen Tag: so ist klar, welche Version läuft, und ein Rollback ist möglich
-- Datenbank-Migrationen laufen automatisch beim Start
+- Datenbank-Migrationen laufen automatisch beim Start (neue Dateien in `api/internal/db/migrations/`, je einmal)
+- Enthält die neue Version eine Migration: vorher ein Backup erstellen
+  (`gcloud sql backups create --instance=$DB_INSTANCE --description="vor <Version>"`).
+  Schlägt die Migration fehl, startet die neue Revision nicht und die bisherige läuft weiter
+- Bereits ausgeführte Migrationen nie ändern, Änderungen am Schema immer als neue Datei `00N_….sql`
+
+## Deployte Versionen anzeigen
+
+Liest alle versionen aus und gibt sie mit revision, timestamp und image hash aus.
+
+```bash
+
+gcloud run revisions list --service=midnightsports --region=europe-west6 --format="table(name,metadata.creationTimestamp.date('%Y-%m-%d %H:%M'),spec.containers[0].image.basename(),status.conditions[0].status)"
+
+```
 
 ## Rollback
 

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { age, formatAddress, formatCHF, formatShortDate, parseDecimal, todayISO } from './format'
+import { age, formatAddress, formatCHF, formatShortDate, pageRange, parseDecimal, todayISO } from './format'
 
 describe('age', () => {
   it('zählt erst ab dem Geburtstag', () => {
@@ -47,5 +47,13 @@ describe('formatAddress', () => {
     expect(formatAddress({ street: 'Hauptstrasse 1', zip: '8355', city: 'Aadorf' })).toBe('Hauptstrasse 1, 8355 Aadorf')
     expect(formatAddress({ street: '', zip: '8355', city: 'Aadorf' })).toBe('8355 Aadorf')
     expect(formatAddress({ street: '', zip: '', city: '' })).toBe('')
+  })
+})
+
+describe('pageRange', () => {
+  it('zeigt den Bereich der Seite', () => {
+    expect(pageRange({ offset: 0, total: 230, items: new Array(50) })).toBe('1–50 von 230')
+    expect(pageRange({ offset: 200, total: 230, items: new Array(30) })).toBe('201–230 von 230')
+    expect(pageRange({ offset: 0, total: 0, items: [] })).toBe('0 von 0')
   })
 })

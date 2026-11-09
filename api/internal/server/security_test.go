@@ -53,7 +53,7 @@ func TestCrossSiteRequestsBlocked(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			req := httptest.NewRequest("POST", "/api/events", strings.NewReader("{}"))
+			req := httptest.NewRequest("POST", "/api/p/aadorf/events", strings.NewReader("{}"))
 			for k, v := range tt.header {
 				req.Header.Set(k, v)
 			}
