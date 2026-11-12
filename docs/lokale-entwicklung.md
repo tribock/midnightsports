@@ -48,7 +48,7 @@ Es gibt zwei Varianten:
 |---|---|
 | `make db` | Nur PostgreSQL starten |
 | `make down` | Alle Container stoppen |
-| `make db-reset` | Datenbank löschen und neu anlegen (alle Daten gehen verloren) |
+| `make db-reset` | Lokale Datenbank löschen und neu anlegen (alle Daten gehen verloren). Nur lokal, nie in Produktion |
 | `make test` | Tests für Backend und Frontend ausführen |
 | `make version` | Aktuelle Version aus Git anzeigen |
 | `make build` | Docker-Image bauen und auf Docker Hub pushen (Tag = Version) |

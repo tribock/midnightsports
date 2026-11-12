@@ -71,17 +71,19 @@ export default function EventDetailPage() {
                 QR-Code scannen
               </Link>
             )}
-            <Link to={`/events/${event.id}/bearbeiten`} className="button">
-              Bearbeiten
-            </Link>
             {isProjectLead(user) && (
-              <Link to={`/events/${event.id}/auszahlung`} className="button">
-                Auszahlung
-              </Link>
+              <>
+                <Link to={`/events/${event.id}/bearbeiten`} className="button">
+                  Bearbeiten
+                </Link>
+                <Link to={`/events/${event.id}/auszahlung`} className="button">
+                  Auszahlung
+                </Link>
+                <button className={event.cancelled ? '' : 'danger'} onClick={() => setCancelled(!event.cancelled)}>
+                  {event.cancelled ? 'Wieder aktivieren' : 'Absagen'}
+                </button>
+              </>
             )}
-            <button className={event.cancelled ? '' : 'danger'} onClick={() => setCancelled(!event.cancelled)}>
-              {event.cancelled ? 'Wieder aktivieren' : 'Absagen'}
-            </button>
           </div>
           <Staff staff={staff} error={staffError} />
           <Participants eventId={event.id} disabled={event.cancelled} />

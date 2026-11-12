@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { api, errorMessage, type Event } from '../api'
-import { isLeader, useAuth } from '../auth'
+import { isLeader, isProjectLead, useAuth } from '../auth'
 import { formatDate } from '../format'
 
 export default function EventsPage() {
@@ -30,9 +30,11 @@ export default function EventsPage() {
         {leader && (
           <div className="actions">
             <button onClick={() => setPast(!past)}>{past ? 'Kommende' : 'Vergangene'}</button>
-            <Link to="/events/neu" className="button primary">
-              Neuer Event
-            </Link>
+            {isProjectLead(user) && (
+              <Link to="/events/neu" className="button primary">
+                Neuer Event
+              </Link>
+            )}
           </div>
         )}
       </div>

@@ -31,11 +31,11 @@ export default function App() {
             <Route path="qr" element={<QrPage />} />
             <Route path="profil" element={<ProfilePage />} />
             <Route element={<RequireRole roles={['projektleiter', 'mitarbeiter', 'admin']} />}>
-              <Route path="events/neu" element={<EventFormPage />} />
-              <Route path="events/:id/bearbeiten" element={<EventFormPage />} />
               <Route path="events/:id/scan" element={<ScanPage />} />
             </Route>
             <Route element={<RequireRole roles={['projektleiter', 'admin']} />}>
+              <Route path="events/neu" element={<EventFormPage />} />
+              <Route path="events/:id/bearbeiten" element={<EventFormPage />} />
               <Route path="zeiten" element={<TimeEntriesPage />} />
               <Route path="team" element={<TeamPage />} />
               <Route path="events/:id/auszahlung" element={<PayoutPage />} />

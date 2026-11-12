@@ -776,6 +776,17 @@ dd {
   border-radius: 4px;
 }
 
+.payout-summary {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 0.25rem 1rem;
+  margin: 0;
+}
+
+.payout-summary dd {
+  margin: 0;
+}
+
 .signature-pad {
   width: 100%;
   height: 200px;
@@ -935,8 +946,15 @@ dd {
 }
 
 .sheet-sign-line {
+  display: flex;
+  align-items: flex-end;
   height: 18mm;
   border-bottom: 1px solid #000;
+}
+
+.sheet-sign-line img {
+  max-height: 17mm;
+  max-width: 100%;
 }
 
 .sheet-report {
