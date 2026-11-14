@@ -105,6 +105,30 @@ export interface MemberSummary {
   sanctions: Sanction[]
 }
 
+/** Verlauf eines Mitarbeiters (Projektleiter und Admins) */
+export interface MemberDetails {
+  registered: string
+  joined: string
+  eventsWorked: number
+  eventsPlanned: number
+  eventsAttended: number
+  events: MemberEvent[]
+  functionChanges: FunctionChange[]
+}
+
+/** Event wie in der Eventliste, dazu die Funktion der Person an diesem Event */
+export interface MemberEvent extends Event {
+  function: string
+}
+
+/** from null: vorher kein Mitarbeiter, to null: Status Mitarbeiter entzogen */
+export interface FunctionChange {
+  at: string
+  by: string
+  from: string | null
+  to: string | null
+}
+
 export interface ProjectSearchResult {
   slug: string
   name: string
@@ -132,6 +156,12 @@ export interface ProjectShare {
   consentedAt: string | null
 }
 
+export interface ProjectAdmin {
+  id: string
+  name: string
+  email: string
+}
+
 export interface AdminProject {
   slug: string
   name: string
@@ -140,7 +170,7 @@ export interface AdminProject {
   hasLogo: boolean
   pending: boolean
   memberCount: number
-  admins: string[]
+  admins: ProjectAdmin[]
   shares: ProjectShare[]
   createdAt: string
 }

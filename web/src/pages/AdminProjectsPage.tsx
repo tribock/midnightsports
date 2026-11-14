@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState, type ChangeEvent, type FormEvent } from 'react'
 import { Link } from 'react-router-dom'
-import { api, errorMessage, type AdminProject } from '../api'
+import { api, errorMessage, type AdminProject, type ProjectAdmin } from '../api'
 import { parseDecimal, readDataURL } from '../format'
 import { projectLogo } from '../project'
 
@@ -70,6 +70,7 @@ export default function AdminProjectsPage() {
             <li key={p.slug} className="editing">
               <EditProjectForm
                 project={p}
+                onAdminsChanged={load}
                 onDone={() => {
                   setEditing(null)
                   load()
@@ -85,7 +86,7 @@ export default function AdminProjectsPage() {
                 {p.pending && <span className="badge warn">Wartet auf Einwilligung</span>}
                 <br />
                 <span className="muted small">
-                  /{p.slug} · {p.region} · {p.memberCount} Mitglieder · Admins: {p.admins.join(', ') || '–'}
+                  /{p.slug} · {p.region} · {p.memberCount} Mitglieder · Admins: {p.admins.map((a) => a.name).join(', ') || '–'}
                 </span>
                 {p.shares.map((s) => (
                   <span key={s.partnerSlug} className="share-line small">
@@ -350,10 +351,12 @@ function ProjectForm({
 /** Name, Region, Beschreibung und Logo eines bestehenden Projekts ändern. */
 function EditProjectForm({
   project,
+  onAdminsChanged,
   onDone,
   onCancel,
 }: {
   project: AdminProject
+  onAdminsChanged: () => void
   onDone: () => void
   onCancel: () => void
 }) {
@@ -375,6 +378,7 @@ function EditProjectForm({
 
   return (
     <form className="stack" onSubmit={submit}>
+      <strong>{project.name} bearbeiten</strong>
       <div className="row">
         <label>
           Name
@@ -396,6 +400,7 @@ function EditProjectForm({
           Standardlogo verwenden
         </label>
       )}
+      <ProjectAdmins project={project} onChanged={onAdminsChanged} />
       {error && <p className="error">{error}</p>}
       <div className="actions">
         <button type="button" className="small" onClick={onCancel}>
@@ -421,4 +426,67 @@ export function slugify(name: string): string {
     .replace(/[^a-z0-9]+/g, '-')
     .replace(/^-+|-+$/g, '')
     .slice(0, 40)
+}
+
+/**
+ * Projekt-Admins eines Projekts: per Email hinzufügen (wie beim Onboarding) oder entfernen. Gilt sofort, unabhängig
+ * vom Speichern der übrigen Angaben. Entfernte Admins bleiben als Projektleiter im Team.
+ */
+function ProjectAdmins({ project, onChanged }: { project: AdminProject; onChanged: () => void }) {
+  const [email, setEmail] = useState('')
+  const [error, setError] = useState('')
+
+  async function add() {
+    setError('')
+    try {
+      await api.post(`/admin/projects/${project.slug}/admins`, { email })
+      setEmail('')
+      onChanged()
+    } catch (err) {
+      setError(errorMessage(err))
+    }
+  }
+
+  async function remove(a: ProjectAdmin) {
+    if (!confirm(`${a.name} ist danach nicht mehr Projekt-Admin, bleibt aber Projektleiter. Fortfahren?`)) return
+    setError('')
+    try {
+      await api.del(`/admin/projects/${project.slug}/admins/${a.id}`)
+      onChanged()
+    } catch (err) {
+      setError(errorMessage(err))
+    }
+  }
+
+  return (
+    <div className="stack">
+      <strong>Projekt-Admins</strong>
+      <ul className="list">
+        {project.admins.map((a) => (
+          <li key={a.id}>
+            <span className="grow">
+              {a.name}
+              <br />
+              <span className="muted small">{a.email}</span>
+            </span>
+            <button type="button" className="small" onClick={() => remove(a)} disabled={project.admins.length === 1}>
+              Entfernen
+            </button>
+          </li>
+        ))}
+      </ul>
+      <div className="row">
+        <label>
+          Email eines neuen Projekt-Admins
+          <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} />
+        </label>
+        <div className="actions">
+          <button type="button" disabled={!email.trim()} onClick={add}>
+            Hinzufügen
+          </button>
+        </div>
+      </div>
+      {error && <p className="error">{error}</p>}
+    </div>
+  )
 }

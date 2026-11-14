@@ -23,3 +23,4 @@ docs/Midnightsports_*.pdf
 
 # Demo-Daten nur für den Demo-Build in die Migrationen kopieren, nie committen (api/internal/db/demo/900_demo_daten.sql)
 api/internal/db/migrations/900_demo_daten.sql
+api/internal/db/migrations/901_demo_accounts.sql

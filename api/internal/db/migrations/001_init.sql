@@ -82,7 +82,7 @@ CREATE TABLE functions (
 
 -- Mitgliedschaft einer Person in einem Projekt. Rollen: Teilnehmer < Mitarbeiter < Projektleiter < Admin (Projekt-Admin).
 -- status: Herkunft im Projekt, gewählt beim Anmelden. Mitarbeiter vergeben nur Projekt-Admins.
--- Genau die Mitarbeiter (Status) haben eine Funktion; sie bilden das Team.
+-- Genau die Mitarbeiter (Status) haben eine Rolle über Teilnehmer und eine Funktion; sie bilden das Team.
 CREATE TABLE project_members (
     project_id  INTEGER NOT NULL REFERENCES projects (id) ON DELETE CASCADE,
     user_id     UUID NOT NULL REFERENCES users (id) ON DELETE CASCADE,
@@ -94,7 +94,8 @@ CREATE TABLE project_members (
     PRIMARY KEY (project_id, user_id),
     -- kein SET NULL: ein Mitarbeiter ohne Funktion verletzt den CHECK, die Funktion wird zuerst umgeteilt
     FOREIGN KEY (project_id, function_id) REFERENCES functions (project_id, id),
-    CHECK ((status = 'mitarbeiter') = (function_id IS NOT NULL))
+    CHECK ((status = 'mitarbeiter') = (function_id IS NOT NULL)),
+    CHECK ((status = 'mitarbeiter') = (role <> 'teilnehmer'))
 );
 
 CREATE INDEX project_members_user_idx ON project_members (user_id);
@@ -251,3 +252,4 @@ FROM projects p, (VALUES
     ('Turnhalle Aadorf', '8355', 'Aadorf', false),
     ('Turnhalle Ettenhausen', '8356', 'Ettenhausen', false)) AS l (name, zip, city, is_default)
 WHERE p.slug = 'aadorf';
+

@@ -41,6 +41,17 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
     }
   }, [slug, reload])
 
+  // Installation aus dem Projekt (Android, «App installieren»): Manifest des Projekts, die App startet dann über
+  // den Projekt-Link /?projekt=… in diesem Projekt
+  useEffect(() => {
+    const link = document.querySelector<HTMLLinkElement>('link[rel="manifest"]')
+    if (!link) return
+    link.href = `/api/public/projects/${encodeURIComponent(slug)}/manifest.webmanifest`
+    return () => {
+      link.href = '/manifest.webmanifest'
+    }
+  }, [slug])
+
   if (error?.status === 403) return <Navigate to={`/projekte/${slug}`} replace />
   if (error) return <p className="error">{error.message}</p>
   if (!member || member.project.slug !== slug) return <p className="muted">Laden…</p>

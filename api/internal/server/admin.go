@@ -23,9 +23,15 @@ type AdminProject struct {
 	HasLogo     bool           `json:"hasLogo"`
 	Pending     bool           `json:"pending"`
 	MemberCount int            `json:"memberCount"`
-	Admins      []string       `json:"admins"`
+	Admins      []ProjectAdmin `json:"admins"`
 	Shares      []ProjectShare `json:"shares"`
 	CreatedAt   time.Time      `json:"createdAt"`
+}
+
+type ProjectAdmin struct {
+	ID    string `json:"id"`
+	Name  string `json:"name"`
+	Email string `json:"email"`
 }
 
 // ProjectShare ist das Teilen der Verwarnungen und Sperren mit einem Partnerprojekt.
@@ -62,10 +68,11 @@ func (s *Server) listAdminProjects(w http.ResponseWriter, r *http.Request, u *Us
 	rows, err := s.db.Query(ctx,
 		`SELECT p.id, p.slug, p.name, p.region, p.description, p.logo IS NOT NULL, `+projectPending+`,
 		        (SELECT count(*) FROM project_members m WHERE m.project_id = p.id),
-		        COALESCE((SELECT array_agg(COALESCE(NULLIF(trim(au.first_name || ' ' || au.last_name), ''), au.email)
-		                                   ORDER BY au.last_name, au.email)
+		        COALESCE((SELECT json_agg(json_build_object('id', au.id, 'email', COALESCE(au.email, ''),
+		                                  'name', COALESCE(NULLIF(trim(au.first_name || ' ' || au.last_name), ''), au.email))
+		                                  ORDER BY au.last_name, au.email)
 		                  FROM project_members am JOIN users au ON au.id = am.user_id
-		                  WHERE am.project_id = p.id AND am.role = 'admin'), '{}'),
+		                  WHERE am.project_id = p.id AND am.role = 'admin'), '[]'),
 		        p.created_at
 		 FROM projects p ORDER BY p.name`)
 	if err != nil {
@@ -209,8 +216,7 @@ func (s *Server) createProject(w http.ResponseWriter, r *http.Request, u *User) 
 	if err != nil {
 		return err
 	}
-	if _, err := tx.Exec(ctx,
-		`INSERT INTO project_members (project_id, user_id, role) VALUES ($1, $2, 'admin')`, projectID, admin.ID); err != nil {
+	if _, err := grantAdmin(ctx, tx, projectID, admin.ID); err != nil {
 		return err
 	}
 
@@ -300,6 +306,130 @@ func (s *Server) updateProject(w http.ResponseWriter, r *http.Request, u *User) 
 		return err
 	}
 	return noContent(w)
+}
+
+// addProjectAdmin macht eine Person per Email zum Projekt-Admin (globale Admins). Gibt es sie noch nicht, wird sie
+// angelegt wie beim Onboarding.
+func (s *Server) addProjectAdmin(w http.ResponseWriter, r *http.Request, u *User) error {
+	var in struct {
+		Email string `json:"email"`
+	}
+	if err := decode(r, &in); err != nil {
+		return err
+	}
+	email := strings.ToLower(strings.TrimSpace(in.Email))
+	if _, err := mail.ParseAddress(email); err != nil {
+		return errorf(http.StatusBadRequest, "Ungültige Email")
+	}
+	ctx := r.Context()
+	tx, err := s.db.Begin(ctx)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback(ctx)
+	var projectID int
+	if err := tx.QueryRow(ctx, `SELECT id FROM projects WHERE slug = $1`, r.PathValue("project")).Scan(&projectID); err != nil {
+		return err
+	}
+	target, err := s.userByEmail(ctx, tx, email)
+	if err != nil {
+		return err
+	}
+	old, err := grantAdmin(ctx, tx, projectID, target.ID)
+	if err != nil {
+		return err
+	}
+	if old != RoleAdmin {
+		if err := s.audit(ctx, tx, auditEntry{Actor: u, ProjectID: &projectID, Action: actionRoleChanged, Target: target,
+			Details: map[string]any{"vorher": old, "nachher": RoleAdmin}}); err != nil {
+			return err
+		}
+	}
+	if err := tx.Commit(ctx); err != nil {
+		return err
+	}
+	return noContent(w)
+}
+
+// removeProjectAdmin entzieht einer Person die Admin-Rolle im Projekt (globale Admins). Sie bleibt Mitarbeiter
+// und wird Projektleiter.
+func (s *Server) removeProjectAdmin(w http.ResponseWriter, r *http.Request, u *User) error {
+	targetID, err := pathUUID(r, "id")
+	if err != nil {
+		return err
+	}
+	ctx := r.Context()
+	tx, err := s.db.Begin(ctx)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback(ctx)
+	var projectID int
+	if err := tx.QueryRow(ctx, `SELECT id FROM projects WHERE slug = $1`, r.PathValue("project")).Scan(&projectID); err != nil {
+		return err
+	}
+	target, err := s.loadUser(ctx, targetID)
+	if err != nil {
+		return err
+	}
+	if err := keepLastAdmin(ctx, tx, projectID, target.ID); err != nil {
+		return err
+	}
+	tag, err := tx.Exec(ctx,
+		`UPDATE project_members SET role = 'projektleiter' WHERE project_id = $1 AND user_id = $2 AND role = 'admin'`,
+		projectID, target.ID)
+	if err != nil {
+		return err
+	}
+	if tag.RowsAffected() == 0 {
+		return errNotFound
+	}
+	if err := s.audit(ctx, tx, auditEntry{Actor: u, ProjectID: &projectID, Action: actionRoleChanged, Target: target,
+		Details: map[string]any{"vorher": RoleAdmin, "nachher": RoleProjektleiter}}); err != nil {
+		return err
+	}
+	if err := tx.Commit(ctx); err != nil {
+		return err
+	}
+	return noContent(w)
+}
+
+// grantAdmin macht eine Person zum Projekt-Admin. Admins sind Mitarbeiter mit Funktion: wer noch keine hat, erhält
+// die erste ohne festen Lohn (wie PL), sonst die erste. Liefert die bisherige Rolle ("" = noch kein Mitglied).
+func grantAdmin(ctx context.Context, tx pgx.Tx, projectID int, userID string) (string, error) {
+	var old string
+	err := tx.QueryRow(ctx,
+		`SELECT role FROM project_members WHERE project_id = $1 AND user_id = $2 FOR UPDATE`, projectID, userID).Scan(&old)
+	if err != nil && !errors.Is(err, pgx.ErrNoRows) {
+		return "", err
+	}
+	tag, err := tx.Exec(ctx,
+		`INSERT INTO project_members (project_id, user_id, role, status, function_id)
+		 SELECT $1, $2, 'admin', 'mitarbeiter', id FROM functions WHERE project_id = $1
+		 ORDER BY salary IS NOT NULL, id LIMIT 1
+		 ON CONFLICT (project_id, user_id) DO UPDATE SET role = 'admin', status = 'mitarbeiter',
+		     function_id = COALESCE(project_members.function_id, EXCLUDED.function_id)`, projectID, userID)
+	if err != nil {
+		return "", err
+	}
+	if tag.RowsAffected() == 0 {
+		return "", errorf(http.StatusBadRequest, "Das Projekt hat noch keine Funktion")
+	}
+	return old, nil
+}
+
+// keepLastAdmin verhindert, dass ein Projekt ohne Projekt-Admin bleibt.
+func keepLastAdmin(ctx context.Context, q dbtx, projectID int, userID string) error {
+	var others bool
+	if err := q.QueryRow(ctx,
+		`SELECT EXISTS (SELECT 1 FROM project_members WHERE project_id = $1 AND role = 'admin' AND user_id <> $2)`,
+		projectID, userID).Scan(&others); err != nil {
+		return err
+	}
+	if !others {
+		return errorf(http.StatusBadRequest, "Ein Projekt braucht mindestens einen Projekt-Admin")
+	}
+	return nil
 }
 
 // removeShare entfernt eine Teilen-Anfrage oder ein bestehendes Teilen (globale Admins), z.B. nach einer Ablehnung.

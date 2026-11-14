@@ -81,13 +81,10 @@ CROSS JOIN LATERAL (SELECT (ARRAY['Müller', 'Meier', 'Schmid', 'Keller', 'Weber
     'Bühler'])[(d.n * 7) % 20 + 1] AS name) AS l;
 
 -- Mitgliedschaften im eigenen Projekt: die ersten 12 Personen jedes Projekts sind das Team
--- (1 Projekt-Admin, 3 Projektleiter, 8 Mitarbeiter), jede fünfte Person ist Gast extern. Den Status Mitarbeiter
--- setzt erst die Zuteilung der Funktion (Mitarbeiter brauchen eine Funktion)
-INSERT INTO project_members (project_id, user_id, role, status)
-SELECT p.id, d.user_id,
-       CASE WHEN d.pos = 1 THEN 'admin' WHEN d.pos <= 4 THEN 'projektleiter' WHEN d.pos <= 12 THEN 'mitarbeiter'
-            ELSE 'teilnehmer' END,
-       CASE WHEN d.pos <= 12 THEN '' WHEN d.n % 5 = 0 THEN 'gast_extern' ELSE 'schueler' END
+-- (1 Projekt-Admin, 3 Projektleiter, 8 Mitarbeiter), jede fünfte Person ist Gast extern. Rolle, Status
+-- Mitarbeiter und Funktion setzt erst die Zuteilung unten (nur zusammen gültig)
+INSERT INTO project_members (project_id, user_id, status)
+SELECT p.id, d.user_id, CASE WHEN d.pos <= 12 THEN '' WHEN d.n % 5 = 0 THEN 'gast_extern' ELSE 'schueler' END
 FROM demo_people d
 JOIN demo_projects p ON p.idx = d.home;
 
@@ -97,11 +94,12 @@ SELECT p.id, d.user_id, 'teilnehmer', 'gast_extern'
 FROM demo_people d
 JOIN demo_projects p ON p.idx = d.partner;
 
--- Funktionen des Teams: Admin und Projektleiter die Funktion ohne Lohn, Mitarbeiter reihum die übrigen
+-- Team: Admin und Projektleiter mit der Funktion ohne Lohn, Mitarbeiter reihum mit den übrigen
 UPDATE project_members pm
 SET status = 'mitarbeiter',
+    role = CASE WHEN d.pos = 1 THEN 'admin' WHEN d.pos <= 4 THEN 'projektleiter' ELSE 'mitarbeiter' END,
     function_id = CASE
-    WHEN pm.role IN ('admin', 'projektleiter') THEN
+    WHEN d.pos <= 4 THEN
         (SELECT f.id FROM functions f WHERE f.project_id = pm.project_id AND f.salary IS NULL ORDER BY f.id LIMIT 1)
     ELSE
         (SELECT f.id FROM functions f WHERE f.project_id = pm.project_id AND f.salary IS NOT NULL
@@ -109,7 +107,8 @@ SET status = 'mitarbeiter',
                                        WHERE f2.project_id = pm.project_id AND f2.salary IS NOT NULL)) LIMIT 1)
     END
 FROM demo_people d
-WHERE d.user_id = pm.user_id AND pm.role <> 'teilnehmer';
+JOIN demo_projects p ON p.idx = d.home
+WHERE d.user_id = pm.user_id AND p.id = pm.project_id AND d.pos <= 12;
 
 -- Events relativ zum Tag des Starts (die Demo-Datenbank wird bei jedem Start neu angelegt): pro Projekt die letzten
 -- 6 Freitage und alle Freitage bis Ende des nächsten Jahres, 21:00 bis 24:00 Uhr. Ort reihum, verantwortlich reihum
@@ -174,3 +173,29 @@ SELECT e.id,
        e.leader_id, e.ends_at + interval '1 hour'
 FROM events e
 WHERE e.ends_at < now();
+
+
+INSERT INTO users (email, first_name, last_name, birth_date, gender, street, zip, city,
+                   emergency_name, emergency_phone, emergency_relation)
+VALUES ('louis.baumann93@gmail.com', 'Hodor', 'Hodor', '1993-09-06', 'm', 'Unterdorfstrasse 78', '9507', 'Kranenberg',
+        'Tschumbolina Kern', '077 789 25 18', 'andere')
+ON CONFLICT (email) DO UPDATE SET
+    first_name         = COALESCE(NULLIF(users.first_name, ''), EXCLUDED.first_name),
+    last_name          = COALESCE(NULLIF(users.last_name, ''), EXCLUDED.last_name),
+    birth_date         = COALESCE(users.birth_date, EXCLUDED.birth_date),
+    gender             = COALESCE(NULLIF(users.gender, ''), EXCLUDED.gender),
+    street             = COALESCE(NULLIF(users.street, ''), EXCLUDED.street),
+    zip                = COALESCE(NULLIF(users.zip, ''), EXCLUDED.zip),
+    city               = COALESCE(NULLIF(users.city, ''), EXCLUDED.city),
+    emergency_name     = COALESCE(NULLIF(users.emergency_name, ''), EXCLUDED.emergency_name),
+    emergency_phone    = COALESCE(NULLIF(users.emergency_phone, ''), EXCLUDED.emergency_phone),
+    emergency_relation = COALESCE(NULLIF(users.emergency_relation, ''), EXCLUDED.emergency_relation);
+
+-- Projekt-Admin in Aadorf (Admins sind Mitarbeiter mit Funktion)
+INSERT INTO project_members (project_id, user_id, role, status, function_id)
+SELECT p.id, u.id, 'admin', 'mitarbeiter', f.id
+FROM projects p
+JOIN functions f ON f.project_id = p.id AND f.name = 'PL'
+CROSS JOIN users u
+WHERE p.slug = 'aadorf' AND u.email = 'louis.baumann93@gmail.com'
+ON CONFLICT (project_id, user_id) DO NOTHING;

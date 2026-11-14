@@ -20,7 +20,8 @@ import { useProject } from '../project'
 type Panel = { userId: string; kind: 'emergency' | 'sanction' }
 
 /**
- * Teilnehmer: die Mitglieder dieses Projekts. Projekt-Admins vergeben Rollen und Status, Projektleiter verwarnen
+ * Teilnehmer: die Mitglieder dieses Projekts. Projekt-Admins vergeben den Status (Mitarbeiter samt Funktion,
+ * Rollen danach im Team), Projektleiter verwarnen
  * und sperren, Personen mit Zugriff sehen Notfallkontakte. Profile ändern nur globale Admins (Administration global).
  */
 export default function MembersPage() {
@@ -50,28 +51,35 @@ export default function MembersPage() {
       .catch((err) => setError(errorMessage(err)))
   }, [api, admin, setError])
 
-  async function change(m: MemberSummary, field: 'role' | 'status', value: Role | UserStatus, functionId?: number) {
+  // Der Status bestimmt die Rolle: Mitarbeiter beginnen als Mitarbeiter (Rolle und Funktion ändern sich danach im
+  // Team), alle anderen sind Teilnehmer
+  async function saveStatus(m: MemberSummary, status: UserStatus, functionId?: number) {
     setError('')
     try {
-      await api.put(`/members/${m.id}/${field}`, { [field]: value, functionId })
-      updateItems((list) => list.map((x) => (x.id === m.id ? { ...x, [field]: value } : x)))
+      await api.put(`/members/${m.id}/status`, { status, functionId })
+      const role: Role = status === 'mitarbeiter' ? 'mitarbeiter' : 'teilnehmer'
+      updateItems((list) => list.map((x) => (x.id === m.id ? { ...x, status, role } : x)))
     } catch (err) {
       setError(errorMessage(err))
     }
   }
 
   // Mitarbeiter brauchen eine Funktion: erst nach deren Wahl wird gespeichert. Wer den Status verliert, verliert
-  // auch die Funktion und damit den Platz im Team.
+  // auch Rolle und Funktion und damit den Platz im Team.
   function changeStatus(m: MemberSummary, status: UserStatus) {
     setStaffing(status === 'mitarbeiter' && m.status !== 'mitarbeiter' ? m.id : null)
     if (status === 'mitarbeiter' || status === m.status) return
-    if (m.status === 'mitarbeiter' && !confirm(`${personName(m)} ist danach nicht mehr im Team. Status ändern?`)) return
-    change(m, 'status', status)
+    if (
+      m.status === 'mitarbeiter' &&
+      !confirm(`${personName(m)} verliert Rolle und Funktion und ist nicht mehr im Team. Status ändern?`)
+    )
+      return
+    saveStatus(m, status)
   }
 
   function chooseFunction(m: MemberSummary, value: string) {
     setStaffing(null)
-    if (value) change(m, 'status', 'mitarbeiter', Number(value))
+    if (value) saveStatus(m, 'mitarbeiter', Number(value))
   }
 
   const labels = statusLabels(project.region)
@@ -94,7 +102,7 @@ export default function MembersPage() {
           <thead>
             <tr>
               <th>Name</th>
-              <th>Rolle / Status</th>
+              <th>Status</th>
               <th className="actions-cell">
                 <span className="sr-only">Aktionen</span>
               </th>
@@ -108,36 +116,31 @@ export default function MembersPage() {
                   <tr className={open ? 'open' : undefined}>
                     <td>
                       {personName(m)}
+                      {m.role !== 'teilnehmer' && <span className="badge">{roleLabels[m.role]}</span>}
                       {m.guest && <span className="badge">Gast</span>}
                       <SanctionBadge sanctions={m.sanctions} />
                       <br />
                       <span className="muted small">{m.email || 'keine Email'}</span>
                     </td>
-                    <td className="stack-cell">
+                    <td>
                       {admin ? (
-                        <>
-                          <select
-                            aria-label={`Rolle von ${personName(m)}`}
-                            value={m.role}
-                            disabled={m.id === member.id}
-                            onChange={(e) => change(m, 'role', e.target.value as Role)}
-                          >
-                            {Object.entries(roleLabels).map(([value, label]) => (
-                              <option key={value} value={value}>
-                                {label}
-                              </option>
-                            ))}
-                          </select>
+                        <div className="stack-cell">
                           <StatusSelect
                             value={staffing === m.id ? 'mitarbeiter' : m.status}
                             region={project.region}
                             canSetStaff
+                            disabled={m.id === member.id}
                             onChange={(status) => changeStatus(m, status)}
                           />
                           {staffing === m.id && (
                             <label>
                               Funktion
-                              <select required value="" onChange={(e) => chooseFunction(m, e.target.value)}>
+                              <select
+                                required
+                                aria-label={`Funktion von ${personName(m)}`}
+                                value=""
+                                onChange={(e) => chooseFunction(m, e.target.value)}
+                              >
                                 <option value="" disabled>
                                   Bitte wählen
                                 </option>
@@ -149,13 +152,9 @@ export default function MembersPage() {
                               </select>
                             </label>
                           )}
-                        </>
+                        </div>
                       ) : (
-                        <>
-                          {roleLabels[m.role]}
-                          <br />
-                          <span className="muted small">{m.status ? labels[m.status] : '–'}</span>
-                        </>
+                        <span className="muted small">{m.status ? labels[m.status] : '–'}</span>
                       )}
                     </td>
                     <td className="actions-cell">

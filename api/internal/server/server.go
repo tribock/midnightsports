@@ -118,6 +118,7 @@ func (s *Server) routes() {
 	// Öffentlich für die Login-Seite über den Projekt-Link: nur Name, Region und Logo aktiver Projekte
 	m.HandleFunc("GET /api/public/projects/{project}", s.publicProject)
 	m.HandleFunc("GET /api/public/projects/{project}/logo", s.projectLogo)
+	m.HandleFunc("GET /api/public/projects/{project}/manifest.webmanifest", s.projectManifest)
 
 	// Person (global)
 	s.route("GET /api/me", s.getMe)
@@ -136,6 +137,8 @@ func (s *Server) routes() {
 	s.adminRoute("POST /api/admin/projects", s.createProject)
 	s.adminRoute("PUT /api/admin/projects/{project}", s.updateProject)
 	s.adminRoute("DELETE /api/admin/projects/{project}/shares/{partner}", s.removeShare)
+	s.adminRoute("POST /api/admin/projects/{project}/admins", s.addProjectAdmin)
+	s.adminRoute("DELETE /api/admin/projects/{project}/admins/{id}", s.removeProjectAdmin)
 	s.adminRoute("GET /api/admin/users", s.listAdminUsers)
 	s.adminRoute("GET /api/admin/users/{id}", s.getAdminUser)
 	s.adminRoute("PUT /api/admin/users/{id}", s.updateAdminUser)
@@ -184,6 +187,7 @@ func (s *Server) routes() {
 	p("GET /members", leaders, s.listMembers)
 	p("PUT /members/{id}/role", admins, s.setMemberRole)
 	p("PUT /members/{id}/status", admins, s.setMemberStatus)
+	p("GET /members/{id}/details", projectLeads, s.getMemberDetails)
 	p("GET /members/{id}/emergency-contact", leaders, s.getEmergencyContact)
 	p("PUT /members/{id}/sanction", projectLeads, s.setSanction)
 	p("DELETE /members/{id}/sanction", projectLeads, s.removeSanction)

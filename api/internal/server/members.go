@@ -1,10 +1,13 @@
 package server
 
 import (
+	"context"
 	"net/http"
 	"slices"
 	"strings"
 	"time"
+
+	"github.com/jackc/pgx/v5"
 )
 
 // MemberSummary ist ein Mitglied in der Teilnehmerliste eines Projekts.
@@ -65,13 +68,14 @@ func (s *Server) listMembers(w http.ResponseWriter, r *http.Request, m *Member) 
 	return nil
 }
 
-// setMemberRole ändert die Rolle eines Mitglieds im Projekt (Projekt-Admins).
+// setMemberRole ändert die Rolle eines Mitarbeiters (Projekt-Admins). Rollen haben nur Mitarbeiter (Status);
+// Teilnehmer wird man, indem der Status Mitarbeiter entzogen wird.
 func (s *Server) setMemberRole(w http.ResponseWriter, r *http.Request, m *Member) error {
 	var req struct{ Role string }
 	if err := decode(r, &req); err != nil {
 		return err
 	}
-	if !slices.Contains(allRoles, req.Role) {
+	if !slices.Contains(allRoles, req.Role) || req.Role == RoleTeilnehmer {
 		return errorf(http.StatusBadRequest, "Ungültige Rolle")
 	}
 	target, err := s.projectMemberUser(r, m)
@@ -81,11 +85,46 @@ func (s *Server) setMemberRole(w http.ResponseWriter, r *http.Request, m *Member
 	if target.ID == m.ID && req.Role != RoleAdmin {
 		return errorf(http.StatusBadRequest, "Die eigene Admin-Rolle kann nicht entzogen werden")
 	}
-	return s.changeMembership(w, r, m, target, "role", req.Role, actionRoleChanged)
+	ctx := r.Context()
+	tx, err := s.db.Begin(ctx)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback(ctx)
+	var old string
+	var status UserStatus
+	if err := tx.QueryRow(ctx,
+		`SELECT role, status FROM project_members WHERE project_id = $1 AND user_id = $2 FOR UPDATE`,
+		m.Project.ID, target.ID).Scan(&old, &status); err != nil {
+		return err
+	}
+	if status != StatusMitarbeiter {
+		return errorf(http.StatusBadRequest, "Rollen haben nur Mitarbeiter: zuerst den Status Mitarbeiter vergeben")
+	}
+	if old == req.Role {
+		return noContent(w)
+	}
+	if old == RoleAdmin {
+		if err := keepLastAdmin(ctx, tx, m.Project.ID, target.ID); err != nil {
+			return err
+		}
+	}
+	if _, err := tx.Exec(ctx, `UPDATE project_members SET role = $3 WHERE project_id = $1 AND user_id = $2`,
+		m.Project.ID, target.ID, req.Role); err != nil {
+		return err
+	}
+	if err := s.audit(ctx, tx, auditEntry{Actor: m.User, ProjectID: &m.Project.ID, Action: actionRoleChanged,
+		Target: target, Details: map[string]any{"vorher": old, "nachher": req.Role}}); err != nil {
+		return err
+	}
+	if err := tx.Commit(ctx); err != nil {
+		return err
+	}
+	return noContent(w)
 }
 
-// setMemberStatus ändert den Status eines Mitglieds (Projekt-Admins, z.B. Mitarbeiter vergeben). Mitarbeiter
-// brauchen eine Funktion (functionId), wer den Status Mitarbeiter verliert, verliert auch die Funktion.
+// setMemberStatus ändert den Status eines Mitglieds (Projekt-Admins). Wer den Status Mitarbeiter bekommt, wird
+// Mitarbeiter mit Funktion (functionId); wer ihn verliert, wird Teilnehmer ohne Funktion.
 func (s *Server) setMemberStatus(w http.ResponseWriter, r *http.Request, m *Member) error {
 	var req struct {
 		Status     UserStatus `json:"status"`
@@ -97,7 +136,7 @@ func (s *Server) setMemberStatus(w http.ResponseWriter, r *http.Request, m *Memb
 	if !req.Status.Valid() {
 		return errorf(http.StatusBadRequest, "Ungültiger Status")
 	}
-	functionID, err := staffFunction(req.Status, req.FunctionID)
+	role, functionID, err := staffMembership(req.Status, req.FunctionID)
 	if err != nil {
 		return err
 	}
@@ -112,20 +151,24 @@ func (s *Server) setMemberStatus(w http.ResponseWriter, r *http.Request, m *Memb
 	}
 	defer tx.Rollback(ctx)
 	var old UserStatus
+	var oldRole string
 	if err := tx.QueryRow(ctx,
-		`SELECT status FROM project_members WHERE project_id = $1 AND user_id = $2 FOR UPDATE`,
-		m.Project.ID, target.ID).Scan(&old); err != nil {
+		`SELECT status, role FROM project_members WHERE project_id = $1 AND user_id = $2 FOR UPDATE`,
+		m.Project.ID, target.ID).Scan(&old, &oldRole); err != nil {
 		return err
 	}
-	// Bleibt jemand Mitarbeiter, ändert sich die Funktion nur über das Team
+	// Bleibt jemand Mitarbeiter, ändern sich Rolle und Funktion nur über das Team
 	if old == req.Status {
 		return noContent(w)
 	}
+	if target.ID == m.ID && old == StatusMitarbeiter {
+		return errorf(http.StatusBadRequest, "Den eigenen Status Mitarbeiter kann man nicht entziehen")
+	}
 	var function *string
 	err = tx.QueryRow(ctx,
-		`UPDATE project_members SET status = $3, function_id = $4 WHERE project_id = $1 AND user_id = $2
-		 RETURNING (SELECT f.name FROM functions f WHERE f.id = $4)`,
-		m.Project.ID, target.ID, req.Status, functionID).Scan(&function)
+		`UPDATE project_members SET status = $3, role = $4, function_id = $5 WHERE project_id = $1 AND user_id = $2
+		 RETURNING (SELECT f.name FROM functions f WHERE f.id = $5)`,
+		m.Project.ID, target.ID, req.Status, role, functionID).Scan(&function)
 	if isForeignKeyViolation(err) {
 		return errorf(http.StatusBadRequest, "Unbekannte Funktion")
 	}
@@ -133,40 +176,8 @@ func (s *Server) setMemberStatus(w http.ResponseWriter, r *http.Request, m *Memb
 		return err
 	}
 	if err := s.audit(ctx, tx, auditEntry{Actor: m.User, ProjectID: &m.Project.ID, Action: actionStatusChanged,
-		Target: target, Details: map[string]any{"vorher": old, "nachher": req.Status, "funktion": function}}); err != nil {
-		return err
-	}
-	if err := tx.Commit(ctx); err != nil {
-		return err
-	}
-	return noContent(w)
-}
-
-// changeMembership setzt die Rolle (column) eines Mitglieds und protokolliert alten und neuen Wert.
-func (s *Server) changeMembership(w http.ResponseWriter, r *http.Request, m *Member, target *User, column, value, action string) error {
-	ctx := r.Context()
-	tx, err := s.db.Begin(ctx)
-	if err != nil {
-		return err
-	}
-	defer tx.Rollback(ctx)
-	var old string
-	// column ist "role" oder "status" aus dem Code, nie aus dem Request
-	if err := tx.QueryRow(ctx,
-		`SELECT `+column+` FROM project_members WHERE project_id = $1 AND user_id = $2 FOR UPDATE`,
-		m.Project.ID, target.ID).Scan(&old); err != nil {
-		return err
-	}
-	if old == value {
-		return noContent(w)
-	}
-	if _, err := tx.Exec(ctx,
-		`UPDATE project_members SET `+column+` = $3 WHERE project_id = $1 AND user_id = $2`,
-		m.Project.ID, target.ID, value); err != nil {
-		return err
-	}
-	if err := s.audit(ctx, tx, auditEntry{Actor: m.User, ProjectID: &m.Project.ID, Action: action, Target: target,
-		Details: map[string]any{"vorher": old, "nachher": value}}); err != nil {
+		Target: target, Details: map[string]any{"vorher": old, "nachher": req.Status, "funktion": function,
+			"rolle_vorher": oldRole, "rolle": role}}); err != nil {
 		return err
 	}
 	if err := tx.Commit(ctx); err != nil {
@@ -200,56 +211,135 @@ func (s *Server) getEmergencyContact(w http.ResponseWriter, r *http.Request, m *
 	return nil
 }
 
-// // getMemberDetails liefert für alle Mitarbeiter die historie, wann registriert, Änderungen von Rolle und anzahl events, bedingt UserStatus.StatusMitarbeiter
-// func (s *Server) getMemberDetails(w http.ResponseWriter, r *http.Request, caller *Member, target *Member, column, value, action string) error {
-// 	ctx := r.Context()
+// MemberDetails: Verlauf eines Mitarbeiters im Projekt
+type MemberDetails struct {
+	Registered      time.Time        `json:"registered"` // Konto erstellt
+	Joined          time.Time        `json:"joined"`     // Mitglied im Projekt seit
+	EventsWorked    int              `json:"eventsWorked"`
+	EventsPlanned   int              `json:"eventsPlanned"`
+	EventsAttended  int              `json:"eventsAttended"`
+	Events          []MemberEvent    `json:"events"`
+	FunctionChanges []FunctionChange `json:"functionChanges"`
+}
 
-// 	// Verify caller and target are present and both are at least a mitarbeiter
-// 	if caller.User == nil {
-// 		return fmt.Errorf("no caller present in request (nil)")
-// 	}
+// MemberEvent: Event wie in der Eventliste, dazu die Funktion der Person an diesem Event
+type MemberEvent struct {
+	*Event
+	Function string `json:"function"`
+}
 
-// 	if caller.Status != StatusMitarbeiter {
-// 		return fmt.Errorf("userstate of caller is not %s as required - current state: %s", StatusMitarbeiter, caller.Status)
-// 	}
+type FunctionChange struct {
+	At   time.Time `json:"at"`
+	By   string    `json:"by"`
+	From *string   `json:"from"` // nil: vorher kein Mitarbeiter
+	To   *string   `json:"to"`   // nil: Status Mitarbeiter entzogen
+}
 
-// 	tx, err := s.db.Begin(ctx)
-// 	if err != nil {
-// 		return err
-// 	}
+// getMemberDetails liefert den Verlauf eines Mitarbeiters: Registrierung, Einsätze und Änderungen der Funktion.
+func (s *Server) getMemberDetails(w http.ResponseWriter, r *http.Request, m *Member) error {
+	target, err := s.projectMemberUser(r, m)
+	if err != nil {
+		return err
+	}
+	ctx := r.Context()
+	var d MemberDetails
+	// Nur Mitarbeiter haben einen Verlauf, alle anderen ergeben 404
+	if err := s.db.QueryRow(ctx,
+		`SELECT u.created_at, pm.joined_at,
+		        (SELECT count(*) FROM checkins c JOIN events e ON e.id = c.event_id
+		         WHERE e.project_id = pm.project_id AND c.user_id = pm.user_id)
+		 FROM project_members pm
+		 JOIN users u ON u.id = pm.user_id
+		 WHERE pm.project_id = $1 AND pm.user_id = $2 AND pm.status = 'mitarbeiter'`,
+		m.Project.ID, target.ID).Scan(&d.Registered, &d.Joined, &d.EventsAttended); err != nil {
+		return err
+	}
 
-// 	if target.User != nil {
-// 		if target.Status != StatusMitarbeiter {
-// 			return fmt.Errorf("userstate of target is not %s as required - current state: %s", StatusMitarbeiter, target.Status)
-// 		}
-// 	} else {
-// 		return fmt.Errorf("no target present in request (nil)")
-// 	}
+	if d.Events, err = s.memberEvents(ctx, m, target.ID); err != nil {
+		return err
+	}
+	now := time.Now()
+	for _, e := range d.Events {
+		if !e.Cancelled {
+			if e.StartsAt.Before(now) {
+				d.EventsWorked++
+			} else {
+				d.EventsPlanned++
+			}
+		}
+	}
 
-// 	defer tx.Rollback(ctx)
+	// Funktion ändert sich über das Team oder zusammen mit dem Status Mitarbeiter
+	rows, err := s.db.Query(ctx,
+		`SELECT at, actor_name, NULL::text, details->>'funktion'
+		 FROM audit_log
+		 WHERE project_id = $1 AND target_user_id = $2
+		   AND (action = $3 OR (action = $4 AND 'mitarbeiter' IN (details->>'vorher', details->>'nachher')))
+		 ORDER BY id`, m.Project.ID, target.ID, actionFunctionChanged, actionStatusChanged)
+	if err != nil {
+		return err
+	}
+	entries, err := pgx.CollectRows(rows, pgx.RowToStructByPos[FunctionChange]) // From folgt in functionChanges
+	if err != nil {
+		return err
+	}
+	d.FunctionChanges = functionChanges(entries)
 
-// 	// get all audit events from audit table that are associated with the user
+	writeJSON(w, http.StatusOK, d)
+	return nil
+}
 
-// 	var records []AuditRecord
-// 	if err := tx.QueryRow(ctx,
-// 		`SELECT * FROM `, "",
-// 	).Scan(&records); err != nil {
-// 		return err
-// 	}
+// memberEvents lädt die Events des Projekts, an denen die Person eingeteilt ist, neuste zuerst. Die Events kommen
+// aus eventQuery wie in der Eventliste, die Funktion am Event aus einer zweiten Abfrage.
+func (s *Server) memberEvents(ctx context.Context, m *Member, userID string) ([]MemberEvent, error) {
+	functions := map[int]string{}
+	rows, err := s.db.Query(ctx,
+		`SELECT es.event_id, f.name
+		 FROM event_staff es
+		 JOIN events e ON e.id = es.event_id
+		 JOIN functions f ON f.id = es.function_id
+		 WHERE e.project_id = $1 AND es.user_id = $2`, m.Project.ID, userID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var id int
+		var name string
+		if err := rows.Scan(&id, &name); err != nil {
+			return nil, err
+		}
+		functions[id] = name
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
 
-// 	//
-// 	writeJSON(w, http.StatusOK, MemberDetails{})
-// 	return nil
-// }
+	rows, err = s.db.Query(ctx, eventQuery+`
+		 WHERE e.project_id = $2 AND e.id IN (SELECT event_id FROM event_staff WHERE user_id = $3)
+		 ORDER BY e.starts_at DESC, e.id`, m.ID, m.Project.ID, userID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	events := []MemberEvent{}
+	for rows.Next() {
+		e, err := s.scanEvent(rows)
+		if err != nil {
+			return nil, err
+		}
+		events = append(events, MemberEvent{e, functions[e.ID]})
+	}
+	return events, rows.Err()
+}
 
-// type MemberDetails struct {
-// 	Registered     time.Time  `json:"registered"`
-// 	EventsAttended int        `json:"eventsAttended"`
-// 	RoleChange     RoleChange `json:"roleChange"`
-// }
-
-// type RoleChange struct {
-// 	From string    `json:"from"`
-// 	To   string    `json:"from"`
-// 	Date time.Time `json:"date"`
-// }
+// functionChanges ergänzt die bisherige Funktion (From) aus dem vorherigen Eintrag, weil das Audit nur die neue
+// speichert. Erwartet die Einträge chronologisch.
+func functionChanges(entries []FunctionChange) []FunctionChange {
+	var prev *string
+	for i := range entries {
+		entries[i].From = prev
+		prev = entries[i].To
+	}
+	return entries
+}

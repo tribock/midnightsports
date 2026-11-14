@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/base64"
+	"encoding/json"
 	"errors"
 	"net/http"
 	"regexp"
@@ -148,6 +149,40 @@ func (s *Server) publicProject(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"slug": p.Slug, "name": p.Name, "region": p.Region, "hasLogo": p.HasLogo})
+}
+
+// projectManifest liefert das Web-App-Manifest für die Installation aus einem Projekt (öffentlich, nur aktive
+// Projekte): die installierte App startet über den Projekt-Link in diesem Projekt.
+func (s *Server) projectManifest(w http.ResponseWriter, r *http.Request) {
+	p, err := s.activeProject(r.Context(), r.PathValue("project"))
+	if err != nil {
+		writeError(w, err)
+		return
+	}
+	w.Header().Set("Content-Type", "application/manifest+json")
+	w.Header().Set("Cache-Control", "no-cache")
+	json.NewEncoder(w).Encode(webManifest(p))
+}
+
+// webManifest entspricht web/public/manifest.webmanifest, mit Name und Start im Projekt. Die id bleibt "/",
+// damit es dieselbe App ist, egal aus welchem Projekt sie installiert wird.
+func webManifest(p *Project) map[string]any {
+	return map[string]any{
+		"id":               "/",
+		"name":             p.Name,
+		"short_name":       "Midnightsports",
+		"start_url":        "/?projekt=" + p.Slug,
+		"scope":            "/",
+		"display":          "standalone",
+		"background_color": "#1b1f3b",
+		"theme_color":      "#1b1f3b",
+		"lang":             "de-CH",
+		"icons": []map[string]string{
+			{"src": "/icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any"},
+			{"src": "/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any"},
+			{"src": "/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any"},
+		},
+	}
 }
 
 func (s *Server) activeProject(ctx context.Context, slug string) (*Project, error) {

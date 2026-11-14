@@ -8,13 +8,14 @@ import {
   type ProjectShare,
   type Role,
   type SanctionRules,
+  type TeamMember,
 } from '../api'
 import AdminLocations from '../components/AdminLocations'
 import { banActionLabels, parseDecimal, roleLabels, salaryLabel } from '../format'
 import { useProject } from '../project'
 
 /**
- * Administration des Projekts (Projekt-Admins): Projekt-Link, Funktionen mit Lohn pro Einsatz, Zugriff auf
+ * Administration des Projekts (Projekt-Admins): Projekt-Link, Projekt-Admins, Funktionen mit Lohn pro Einsatz, Zugriff auf
  * Notfallkontakte, Fristen für Verwarnungen und Sperren, geteilte Verwarnungen und Veranstaltungsorte.
  */
 export default function AdministrationPage() {
@@ -37,6 +38,7 @@ export default function AdministrationPage() {
       <p className="muted">{project.name}</p>
       {error && <p className="error">{error}</p>}
       <JoinLink />
+      <ProjectAdmins />
       <Functions functions={functions} onChanged={load} />
       <EmergencyAccessSettings functions={functions} />
       <SanctionSettings />
@@ -67,6 +69,87 @@ function JoinLink() {
         </div>
         <a href={url}>{url}</a>
       </div>
+    </section>
+  )
+}
+
+/**
+ * Projekt-Admins: Mitarbeiter aus dem Team zum Admin machen oder die Admin-Rolle entziehen (sie bleiben
+ * Projektleiter). Die eigene Rolle und der letzte Admin bleiben.
+ */
+function ProjectAdmins() {
+  const { api, member } = useProject()
+  const [team, setTeam] = useState<TeamMember[]>([])
+  const [error, setError] = useState('')
+
+  const load = useCallback(() => {
+    api
+      .get<TeamMember[]>('/team')
+      .then(setTeam)
+      .catch((err) => setError(errorMessage(err)))
+  }, [api])
+
+  useEffect(load, [load])
+
+  async function setRole(m: TeamMember, role: Role) {
+    setError('')
+    try {
+      await api.put(`/members/${m.id}/role`, { role })
+      load()
+    } catch (err) {
+      setError(errorMessage(err))
+    }
+  }
+
+  const admins = team.filter((m) => m.role === 'admin')
+  const others = team.filter((m) => m.role !== 'admin')
+  return (
+    <section className="stack">
+      <div className="section-header">
+        <h2>Projekt-Admins</h2>
+      </div>
+      <p className="muted small">
+        Projekt-Admins verwalten das Projekt. Admin werden können Mitarbeiter aus dem Team (Status Mitarbeiter unter
+        Teilnehmer).
+      </p>
+      {error && <p className="error">{error}</p>}
+      <ul className="list">
+        {admins.map((m) => (
+          <li key={m.id}>
+            <span className="grow">
+              {m.name || m.email}
+              <br />
+              <span className="muted small">{m.email}</span>
+            </span>
+            {m.id !== member.id && admins.length > 1 && (
+              <button className="small" onClick={() => setRole(m, 'projektleiter')}>
+                Entfernen
+              </button>
+            )}
+          </li>
+        ))}
+      </ul>
+      {others.length > 0 && (
+        <label>
+          Mitarbeiter als Admin hinzufügen
+          <select
+            value=""
+            onChange={(e) => {
+              const m = others.find((x) => x.id === e.target.value)
+              if (m) setRole(m, 'admin')
+            }}
+          >
+            <option value="" disabled>
+              Bitte wählen
+            </option>
+            {others.map((m) => (
+              <option key={m.id} value={m.id}>
+                {m.name || m.email} ({roleLabels[m.role]})
+              </option>
+            ))}
+          </select>
+        </label>
+      )}
     </section>
   )
 }

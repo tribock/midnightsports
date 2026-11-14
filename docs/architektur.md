@@ -131,8 +131,9 @@ erDiagram
   ebenso bei Projekt-Admins, die beim Onboarding per Email angelegt werden.
 - Löschen: Check-ins bleiben mit `user_id = NULL`, im Audit wird der Name durch „Gelöschtes Konto“ ersetzt.
 
-**Team**: Genau die Mitglieder mit Status Mitarbeiter haben eine Funktion (`CHECK` in `project_members`); nur sie
-erscheinen im Team und können an Events eingeteilt werden. Ohne Status Mitarbeiter keine Funktion.
+**Team**: Genau die Mitglieder mit Status Mitarbeiter haben eine Rolle über Teilnehmer und eine Funktion (`CHECK`s in
+`project_members`); nur sie erscheinen im Team und können an Events eingeteilt werden. Mit dem Status wird man
+Mitarbeiter, ohne ihn Teilnehmer ohne Funktion. Rolle und Funktion ändern Projekt-Admins im Team.
 
 **Einsatz**: Funktion und Betrag werden beim Einteilen kopiert, spätere Lohnänderungen ändern vergangene Events nicht.
 

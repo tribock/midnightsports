@@ -665,6 +665,11 @@ dd {
   flex-wrap: wrap;
 }
 
+/* aufgeklappter Verlauf unter der Person, volle Breite */
+.member-history {
+  flex-basis: 100%;
+}
+
 .chips {
   display: flex;
   flex-wrap: wrap;
@@ -1060,9 +1065,11 @@ dd {
   padding: 0.5rem;
 }
 
+/* Inhalt einer Tabellenzelle untereinander: als div in der Zelle, ein flex-td verliert das Tabellenlayout */
 .stack-cell {
   display: flex;
   flex-direction: column;
+  align-items: flex-start;
   gap: 0.35rem;
 }
 

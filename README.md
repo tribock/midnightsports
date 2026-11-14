@@ -53,9 +53,10 @@ Alles von Mitarbeiter, zusätzlich:
 
 - **Events** anlegen (Datum, Zeitraum, Ort, Standard: Standardort des Projekts), bearbeiten, absagen. Einzeln,
   keine Serien, nicht löschbar. Genau ein verantwortlicher Projektleiter pro Event
-- **Team**: Seite mit allen Mitarbeitern (Status), Anzahl pro Funktion und total. Jeder Mitarbeiter hat eine
-  Funktion (z.B. JC, SC): Projekt-Admins wählen sie unter Teilnehmer zusammen mit dem Status Mitarbeiter und ändern
-  sie im Team. Wer den Status verliert, verliert auch die Funktion
+- **Team**: Seite mit allen Mitarbeitern (Status), Anzahl pro Funktion und total, Verlauf pro Person (Einsätze,
+  Änderungen der Funktion). Jeder Mitarbeiter hat eine Rolle und eine Funktion (z.B. JC, SC): Projekt-Admins wählen
+  die Funktion unter Teilnehmer zusammen mit dem Status Mitarbeiter und ändern Rolle und Funktion im Team. Wer den
+  Status verliert, wird Teilnehmer ohne Funktion
 - **Einsatz am Event**: Team-Mitglieder auswählen, Betrag kommt aus der Funktion (nicht editierbar). Funktionen ohne
   Lohn (z.B. PL) über die Zeiterfassung. Der Betrag wird beim Einteilen festgehalten, spätere Lohnänderungen ändern
   vergangene Events nicht
@@ -74,10 +75,12 @@ Alles von Mitarbeiter, zusätzlich:
 
 Alles von Projektleiter im eigenen Projekt, zusätzlich:
 
-- **Teilnehmer**: nur Mitglieder dieses Projekts. Rolle und Status vergeben, Notfallkontakt (Telefon-Symbol),
+- **Teilnehmer**: nur Mitglieder dieses Projekts. Status vergeben (Mitarbeiter samt Funktion), Notfallkontakt (Telefon-Symbol),
   verwarnen und sperren (Warndreieck)
 - **Administration**:
   - Projekt-Link mit QR-Code
+  - Projekt-Admins: Mitarbeiter aus dem Team zum Admin machen oder entfernen (bleiben Projektleiter), der letzte
+    Admin bleibt
   - Funktionen mit Lohn pro Einsatz (Aadorf: JC 20, JSC 40, SC 80, PL über Zeiterfassung). Funktionen, die
     Mitarbeitern zugeteilt oder an Events eingesetzt sind, sind nicht löschbar
   - Zugriff auf Notfallkontakte: Rollen und Funktionen wählen (Standard: Projektleiter)
@@ -93,7 +96,8 @@ Alles von Projektleiter im eigenen Projekt, zusätzlich:
 - Festgelegt über `ADMIN_EMAIL` (komma-getrennt), in jedem Projekt Projekt-Admin
 - **Alle Projekte**: Onboarding mit Name, Kurzname, Region, Logo, Projekt-Admin per Email, Funktionen mit
   Bezeichnung und Lohn (z.B. JC, JSC, SC, PL), erstem Ort. Festlegen, mit welchen Projekten Verwarnungen geteilt
-  werden: das neue Projekt bleibt gesperrt, bis die Projekt-Admins der Partner eingewilligt haben
+  werden: das neue Projekt bleibt gesperrt, bis die Projekt-Admins der Partner eingewilligt haben. Beim Bearbeiten
+  Projekt-Admins per Email hinzufügen oder entfernen
 - **Benutzer**: alle Personen über alle Projekte, Profile bearbeiten (bei Gästen auch die Email), Personen löschen
 - **Audit**: Protokoll datenschutzrelevanter Vorgänge (Zugriffe auf Notfallkontakte und Profile, Änderungen,
   Löschungen, Exporte, Rollen, Verwarnungen, Teilen)

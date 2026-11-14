@@ -72,3 +72,14 @@ func TestParseLogo(t *testing.T) {
 		})
 	}
 }
+
+func TestWebManifest(t *testing.T) {
+	m := webManifest(&Project{Slug: "aadorf", Name: "Midnightsports Aadorf"})
+	if m["start_url"] != "/?projekt=aadorf" {
+		t.Errorf("start_url = %v", m["start_url"])
+	}
+	// Dieselbe App, egal aus welchem Projekt installiert
+	if m["id"] != "/" || m["name"] != "Midnightsports Aadorf" {
+		t.Errorf("id = %v, name = %v", m["id"], m["name"])
+	}
+}

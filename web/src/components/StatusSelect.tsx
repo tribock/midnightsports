@@ -10,12 +10,14 @@ export default function StatusSelect({
   onChange,
   region,
   canSetStaff = false,
+  disabled = false,
   label = 'Status',
 }: {
   value: UserStatus | ''
   onChange: (value: UserStatus) => void
   region: string
   canSetStaff?: boolean
+  disabled?: boolean
   label?: string
 }) {
   const labels = statusLabels(region)
@@ -23,7 +25,7 @@ export default function StatusSelect({
   return (
     <label>
       {label}
-      <select required value={value} onChange={(e) => onChange(e.target.value as UserStatus)}>
+      <select required value={value} disabled={disabled} onChange={(e) => onChange(e.target.value as UserStatus)}>
         <option value="" disabled>
           Bitte wählen
         </option>
