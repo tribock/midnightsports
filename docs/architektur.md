@@ -48,6 +48,7 @@ erDiagram
     projects ||--o{ locations : hat
     projects ||--o{ events : hat
     projects ||--o{ time_entries : hat
+    projects ||--o{ expenses : hat
     projects ||--o{ sanctions : "verwarnt / sperrt"
     projects ||--o{ project_shares : "teilt mit"
     projects ||--o{ emergency_access_roles : Notfallzugriff

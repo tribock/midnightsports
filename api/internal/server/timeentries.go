@@ -127,12 +127,3 @@ func (s *Server) exportTimeEntries(w http.ResponseWriter, r *http.Request, m *Me
 	cw.Flush()
 	return cw.Error()
 }
-
-// csvText schützt Freitext vor Formel-Injection: Excel führt Zellen, die mit = + - @ beginnen, als Formel aus
-// (z.B. ein Name "=HYPERLINK(...)"). Ein vorangestelltes ' macht sie zu Text.
-func csvText(s string) string {
-	if s != "" && strings.ContainsRune("=+-@\t\r", rune(s[0])) {
-		return "'" + s
-	}
-	return s
-}

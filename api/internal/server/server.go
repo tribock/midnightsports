@@ -210,6 +210,11 @@ func (s *Server) routes() {
 	p("DELETE /time-entries/{id}", projectLeads, s.deleteTimeEntry)
 	p("GET /time-entries/export.csv", admins, s.exportTimeEntries)
 
+	p("GET /expenses", leaders, s.listExpenseEntries)
+	p("POST /expenses", leaders, s.createExpenseEntry)
+	p("DELETE /expenses/{id}", leaders, s.deleteExpenseEntry)
+	p("GET /expenses/export.csv", projectLeads, s.exportExpenseEntries)
+
 	m.HandleFunc("/api/", func(w http.ResponseWriter, r *http.Request) {
 		writeError(w, errNotFound)
 	})
