@@ -726,6 +726,15 @@ dd {
   margin: 0;
 }
 
+/* Kacheln mit längeren Bezeichnungen und Beträgen (Statistik) */
+.stat-grid.wide {
+  grid-template-columns: repeat(auto-fill, minmax(170px, 1fr));
+}
+
+.stat-grid.wide dd {
+  white-space: nowrap;
+}
+
 .stat {
   background: var(--surface);
   border: 1px solid var(--border);

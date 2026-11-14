@@ -12,6 +12,7 @@ import {
   type UserStatus,
 } from '../api'
 import { isLeader, isProjectLead } from '../auth'
+import { attendanceLabel } from '../common/attendance'
 import { age, formatAddress, formatCHF, formatDate, formatTime, personName, statusLabels } from '../format'
 import EventInfo from '../components/EventInfo'
 import PrintSheet, { printDocument } from '../components/PrintSheet'
@@ -455,8 +456,7 @@ function ReportSheet({
         <dd>{event.leader?.name || '–'}</dd>
         <dt>Teilnehmer</dt>
         <dd>
-          {report.checkinCount} vor Ort (W {a.w} · M {a.m} · D {a.d}
-          {a.other > 0 && ` · ohne Angabe ${a.other}`}), {report.registrationCount} angemeldet
+          {report.checkinCount} vor Ort ({attendanceLabel(a)}), {report.registrationCount} angemeldet
         </dd>
       </dl>
 

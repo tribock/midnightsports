@@ -36,7 +36,7 @@ gitignored and may be missing. Their content is captured in `docs/anforderungen.
   - `src/auth.tsx`: current user (`Me`, with projects), role helpers `isAdmin`, `isProjectLead`, `isLeader`, `canViewMembers` (take the project `Member`), remembered target after login
   - `src/project.tsx`: `ProjectProvider` for all pages under `/p/:slug`, `useProject()` gives `member`, `project`, a scoped `api` (prefix `/p/{slug}`) and `base` for links
   - `src/format.ts`: labels and formatting (CHF, dates, addresses, `parseDecimal`)
-  - `src/pages/`: one page per route (routes in `App.tsx`), `src/components/`: shared pieces
+  - `src/pages/`: one page per route (routes in `App.tsx`), `src/components/`: shared pieces, `src/common/`: shared pure functions (e.g. `sum`, `attendanceLabel`) with tests
   - `src/styles.css`: design tokens on `:root` with dark mode, all styles, print styles
 - `build/`: Dockerfile, Cloud Run demo config. `Makefile`: all commands
 

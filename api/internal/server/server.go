@@ -167,6 +167,8 @@ func (s *Server) routes() {
 	p("GET /events/{id}/report", projectLeads, s.getReport)
 	p("PUT /events/{id}/report", projectLeads, s.saveReport)
 
+	p("GET /statistics", projectLeads, s.getStatistics)
+
 	p("GET /events/{id}/staff", leaders, s.listStaff)
 	p("GET /events/{id}/payout", projectLeads, s.listPayout)
 	p("PUT /events/{id}/payout/{userId}", projectLeads, s.signPayout)

@@ -26,6 +26,7 @@ import PayoutPage from './pages/PayoutPage'
 import ProfilePage from './pages/ProfilePage'
 import ProjectJoinPage from './pages/ProjectJoinPage'
 import ProjectSearchPage from './pages/ProjectSearchPage'
+import StatisticsPage from './pages/StatisticsPage'
 import TeamPage from './pages/TeamPage'
 import TimeEntriesPage from './pages/TimeEntriesPage'
 import { projectLogo, ProjectProvider, useOptionalProject, useProject } from './project'
@@ -77,6 +78,7 @@ export default function App() {
                 <Route path="events/:id/bearbeiten" element={<EventFormPage />} />
                 <Route path="zeiten" element={<TimeEntriesPage />} />
                 <Route path="team" element={<TeamPage />} />
+                <Route path="statistik" element={<StatisticsPage />} />
                 <Route path="events/:id/auszahlung" element={<PayoutPage />} />
               </Route>
               <Route element={<RequireMembersAccess />}>
@@ -184,6 +186,7 @@ function Layout() {
               <NavLink to={`${base}/qr`}>Mein QR-Code</NavLink>
               {isProjectLead(ctx.member) && <NavLink to={`${base}/zeiten`}>Zeiterfassung</NavLink>}
               {isProjectLead(ctx.member) && <NavLink to={`${base}/team`}>Team</NavLink>}
+              {isProjectLead(ctx.member) && <NavLink to={`${base}/statistik`}>Statistik</NavLink>}
               {canViewMembers(ctx.member) && <NavLink to={`${base}/teilnehmer`}>Teilnehmer</NavLink>}
               {isAdmin(ctx.member) && <NavLink to={`${base}/administration`}>Administration</NavLink>}
               <NavLink to={`${base}/profil`}>Profil</NavLink>

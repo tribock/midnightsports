@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState, type FormEvent } from 'react'
 import { errorMessage, type Event, type TimeEntry } from '../api'
 import { isAdmin } from '../auth'
+import { sum } from '../common/stats'
 import { formatShortDate, parseDecimal, todayISO } from '../format'
 import { useProject } from '../project'
 
@@ -52,7 +53,7 @@ export default function TimeEntriesPage() {
     load()
   }
 
-  const total = entries.reduce((sum, e) => sum + e.hours, 0)
+  const total = sum(entries, (e) => e.hours)
   return (
     <div className="stack">
       <div className="page-header">

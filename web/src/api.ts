@@ -263,6 +263,33 @@ export interface CheckinResult {
   blocked: boolean
 }
 
+/** Check-ins nach Geschlecht, other = ohne Angabe oder gelöschtes Konto */
+export interface Attendance {
+  w: number
+  m: number
+  d: number
+  other: number
+}
+
+/** Statistik eines Zeitraums: vergangene, nicht abgesagte Events */
+export interface Statistics {
+  from: string
+  to: string
+  eventCount: number
+  attendance: Attendance & { total: number }
+  team: StatsMember[]
+}
+
+/** Einsätze einer Person im Zeitraum. paid: unterschriebene Beträge, hours: Zeiterfassung (z.B. PL) */
+export interface StatsMember {
+  userId: string
+  name: string
+  function: string
+  events: number
+  paid: number
+  hours: number
+}
+
 export interface Report {
   eventId: number
   body: string
@@ -271,7 +298,7 @@ export interface Report {
   registrationCount: number
   checkinCount: number
   /** Anwesende nach Geschlecht, other = ohne Angabe (z.B. gelöschte Konten) */
-  attendance: { w: number; m: number; d: number; other: number }
+  attendance: Attendance
 }
 
 export interface TimeEntry {

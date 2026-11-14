@@ -67,6 +67,9 @@ Alles von Mitarbeiter, zusätzlich:
   abgerechnete Personen separat
 - **Bericht**: einer pro Event (Freitext), Teilnehmerzahl automatisch. **Drucken**: Datum, Ort, Projektleiter,
   Teilnehmer vor Ort (W/M/D), anwesendes Team mit Funktion, Bericht
+- **Statistik**: Zeitraum wählbar (Standard: letzte 8 Monate), vergangene Events ohne abgesagte. Anzahl Events,
+  Schnitt Teilnehmende pro Event total und nach W/M/D, pro Person im Team Einsätze, ausbezahlter Betrag (nur
+  unterschrieben) und Stunden der Zeiterfassung, Totale für Mitarbeiter (CHF) und PL (Stunden)
 - **Zeiterfassung**: Datum, Stunden, Beschreibung, optional Event. Eigene Einträge, Projekt-Admins sehen alle
 - **Verwarnen und sperren** mit Grund: Seite Teilnehmer oder Teilnehmerliste am Event (Warndreieck)
 - **Notfallkontakte**, wenn die Rolle Zugriff hat (Standard)
