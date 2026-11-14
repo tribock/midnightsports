@@ -30,28 +30,29 @@ func TestEnums(t *testing.T) {
 	}
 }
 
-func TestCheckStatusChange(t *testing.T) {
-	admin, pl := RoleAdmin, RoleProjektleiter
+func TestStaffFunction(t *testing.T) {
+	fn := 3
 
 	tests := []struct {
-		name          string
-		editor        string
-		current, next UserStatus
-		ok            bool
+		name       string
+		status     UserStatus
+		functionID *int
+		want       *int
+		ok         bool
 	}{
-		{"Gast als Schüler erfassen", pl, "", StatusSchueler, true},
-		{"Wechsel Schüler zu Gast", pl, StatusSchueler, StatusGastExtern, true},
-		{"Mitarbeiter selbst wählen", pl, StatusGastExtern, StatusMitarbeiter, false},
-		{"Gast als Mitarbeiter erfassen", pl, "", StatusMitarbeiter, false},
-		{"Mitarbeiter bleibt beim Speichern", pl, StatusMitarbeiter, StatusMitarbeiter, true},
-		{"Mitarbeiter selbst entfernen", pl, StatusMitarbeiter, StatusGastExtern, false},
-		{"Projekt-Admin vergibt Mitarbeiter", admin, StatusGastExtern, StatusMitarbeiter, true},
-		{"Projekt-Admin entfernt Mitarbeiter", admin, StatusMitarbeiter, StatusSchueler, true},
+		{"Mitarbeiter mit Funktion", StatusMitarbeiter, &fn, &fn, true},
+		{"Mitarbeiter ohne Funktion", StatusMitarbeiter, nil, nil, false},
+		{"Schüler ohne Funktion", StatusSchueler, nil, nil, true},
+		{"Gast extern verliert die Funktion", StatusGastExtern, &fn, nil, true},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if err := checkStatusChange(tt.editor, tt.current, tt.next); (err == nil) != tt.ok {
-				t.Errorf("err = %v, want ok = %v", err, tt.ok)
+			got, err := staffFunction(tt.status, tt.functionID)
+			if (err == nil) != tt.ok {
+				t.Fatalf("err = %v, want ok = %v", err, tt.ok)
+			}
+			if got != tt.want {
+				t.Errorf("Funktion = %v, want %v", got, tt.want)
 			}
 		})
 	}

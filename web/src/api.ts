@@ -279,8 +279,8 @@ export interface TeamMember {
   email: string
   role: Role
   name: string
-  functionId: number | null
-  functionName: string | null
+  functionId: number
+  functionName: string
 }
 
 /** Einsatz einer Person an einem Event, salary nur für Projektleiter und Admins */

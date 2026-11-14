@@ -11,7 +11,7 @@ import {
   type StaffEntry,
   type UserStatus,
 } from '../api'
-import { isAdmin, isLeader, isProjectLead } from '../auth'
+import { isLeader, isProjectLead } from '../auth'
 import { age, formatAddress, formatCHF, formatDate, formatTime, personName, statusLabels } from '../format'
 import EventInfo from '../components/EventInfo'
 import PrintSheet, { printDocument } from '../components/PrintSheet'
@@ -330,7 +330,7 @@ function GuestForm({
   onDone: (r: CheckinResult) => void
   onCancel: () => void
 }) {
-  const { api, member, project } = useProject()
+  const { api, project } = useProject()
   const [form, setForm] = useState<ProfileData>(emptyProfile)
   const [status, setStatus] = useState<UserStatus | ''>('')
   const [error, setError] = useState('')
@@ -353,7 +353,7 @@ function GuestForm({
         werden.
       </p>
       <ProfileFields value={form} onChange={setForm} email="optional" />
-      <StatusSelect value={status} onChange={setStatus} region={project.region} canSetStaff={isAdmin(member)} />
+      <StatusSelect value={status} onChange={setStatus} region={project.region} />
       {error && <p className="error">{error}</p>}
       <div className="actions">
         <button type="button" onClick={onCancel}>

@@ -43,14 +43,14 @@ func (s UserStatus) Valid() bool {
 	return slices.Contains([]UserStatus{StatusSchueler, StatusGastExtern, StatusMitarbeiter}, s)
 }
 
-// checkStatusChange: den Status Mitarbeiter vergeben und entziehen nur Projekt-Admins.
-// Alle anderen dürfen ihn unverändert lassen.
-func checkStatusChange(editorRole string, current, next UserStatus) error {
-	if editorRole == RoleAdmin || current == next {
-		return nil
+// staffFunction liefert die Funktion zum Status: Mitarbeiter brauchen eine Funktion, alle anderen haben keine
+// (wer den Status Mitarbeiter verliert, verliert auch die Funktion).
+func staffFunction(status UserStatus, functionID *int) (*int, error) {
+	if status != StatusMitarbeiter {
+		return nil, nil
 	}
-	if current == StatusMitarbeiter || next == StatusMitarbeiter {
-		return errorf(http.StatusForbidden, "Den Status Mitarbeiter vergeben nur Projekt-Admins")
+	if functionID == nil {
+		return nil, errorf(http.StatusBadRequest, "Mitarbeiter brauchen eine Funktion")
 	}
-	return nil
+	return functionID, nil
 }

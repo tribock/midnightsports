@@ -4,7 +4,7 @@ import { isAdmin } from '../auth'
 import { roleLabels, salaryLabel } from '../format'
 import { useProject } from '../project'
 
-/** Team: Projektleiter, Mitarbeiter und Admins des Projekts mit ihrer Funktion. Ändern nur durch Projekt-Admins. */
+/** Team: die Mitarbeiter (Status) des Projekts mit ihrer Funktion. Ändern nur durch Projekt-Admins. */
 export default function TeamPage() {
   const { api, member } = useProject()
   const canEdit = isAdmin(member)
@@ -23,14 +23,11 @@ export default function TeamPage() {
 
   async function setFunction(member: TeamMember, value: string) {
     const fn = functions.find((f) => String(f.id) === value)
+    if (!fn) return
     setError('')
     try {
-      await api.put(`/team/${member.id}/function`, { functionId: fn ? fn.id : null })
-      setTeam(
-        (list) =>
-          list?.map((m) => (m.id === member.id ? { ...m, functionId: fn?.id ?? null, functionName: fn?.name ?? null } : m)) ??
-          null,
-      )
+      await api.put(`/team/${member.id}/function`, { functionId: fn.id })
+      setTeam((list) => list?.map((m) => (m.id === member.id ? { ...m, functionId: fn.id, functionName: fn.name } : m)) ?? null)
     } catch (err) {
       setError(errorMessage(err))
     }
@@ -44,12 +41,12 @@ export default function TeamPage() {
     <div className="stack">
       <h1>Team</h1>
       <p className="muted">
-        Projektleiter, Mitarbeiter und Admins mit ihrer Funktion an Events. Rollen werden unter Teilnehmer vergeben
-        {canEdit ? ', Funktionen und Löhne unter Administration' : ''}.
+        Alle Mitarbeiter mit ihrer Funktion an Events. Den Status Mitarbeiter samt Funktion vergeben Projekt-Admins
+        unter Teilnehmer{canEdit ? ', Funktionen und Löhne unter Administration' : ''}.
       </p>
       {error && <p className="error">{error}</p>}
       {team === null && !error && <p className="muted">Laden…</p>}
-      {team?.length === 0 && <p className="muted">Noch niemand im Team. Rollen unter Teilnehmer vergeben.</p>}
+      {team?.length === 0 && <p className="muted">Noch niemand im Team. Den Status Mitarbeiter unter Teilnehmer vergeben.</p>}
       {team && team.length > 0 && <FunctionOverview team={team} functions={functions} />}
 
       <ul className="list">
@@ -64,10 +61,9 @@ export default function TeamPage() {
             {canEdit ? (
               <select
                 aria-label={`Funktion von ${m.name || m.email}`}
-                value={m.functionId ?? ''}
+                value={m.functionId}
                 onChange={(e) => setFunction(m, e.target.value)}
               >
-                <option value="">Keine Funktion</option>
                 {functions.map((f) => (
                   <option key={f.id} value={f.id}>
                     {label(f)}
@@ -75,7 +71,7 @@ export default function TeamPage() {
                 ))}
               </select>
             ) : (
-              <span className={m.functionName ? 'badge' : 'muted small'}>{m.functionName ?? 'Keine Funktion'}</span>
+              <span className="badge">{m.functionName}</span>
             )}
           </li>
         ))}
@@ -84,10 +80,9 @@ export default function TeamPage() {
   )
 }
 
-/** Anzahl Personen pro Funktion, inkl. Funktionen ohne Personen und Personen ohne Funktion */
+/** Anzahl Personen pro Funktion, inkl. Funktionen ohne Personen */
 function FunctionOverview({ team, functions }: { team: TeamMember[]; functions: Func[] }) {
-  const count = (functionId: number | null) => team.filter((m) => m.functionId === functionId).length
-  const withoutFunction = count(null)
+  const count = (functionId: number) => team.filter((m) => m.functionId === functionId).length
 
   return (
     <dl className="stat-grid" aria-label="Personen pro Funktion">
@@ -97,12 +92,6 @@ function FunctionOverview({ team, functions }: { team: TeamMember[]; functions: 
           <dd>{count(f.id)}</dd>
         </div>
       ))}
-      {withoutFunction > 0 && (
-        <div className="stat muted">
-          <dt>Ohne Funktion</dt>
-          <dd>{withoutFunction}</dd>
-        </div>
-      )}
       <div className="stat total">
         <dt>Total</dt>
         <dd>{team.length}</dd>

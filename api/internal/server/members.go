@@ -84,23 +84,65 @@ func (s *Server) setMemberRole(w http.ResponseWriter, r *http.Request, m *Member
 	return s.changeMembership(w, r, m, target, "role", req.Role, actionRoleChanged)
 }
 
-// setMemberStatus ändert den Status eines Mitglieds (Projekt-Admins, z.B. Mitarbeiter vergeben).
+// setMemberStatus ändert den Status eines Mitglieds (Projekt-Admins, z.B. Mitarbeiter vergeben). Mitarbeiter
+// brauchen eine Funktion (functionId), wer den Status Mitarbeiter verliert, verliert auch die Funktion.
 func (s *Server) setMemberStatus(w http.ResponseWriter, r *http.Request, m *Member) error {
-	var req struct{ Status UserStatus }
+	var req struct {
+		Status     UserStatus `json:"status"`
+		FunctionID *int       `json:"functionId"`
+	}
 	if err := decode(r, &req); err != nil {
 		return err
 	}
 	if !req.Status.Valid() {
 		return errorf(http.StatusBadRequest, "Ungültiger Status")
 	}
+	functionID, err := staffFunction(req.Status, req.FunctionID)
+	if err != nil {
+		return err
+	}
 	target, err := s.projectMemberUser(r, m)
 	if err != nil {
 		return err
 	}
-	return s.changeMembership(w, r, m, target, "status", string(req.Status), actionStatusChanged)
+	ctx := r.Context()
+	tx, err := s.db.Begin(ctx)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback(ctx)
+	var old UserStatus
+	if err := tx.QueryRow(ctx,
+		`SELECT status FROM project_members WHERE project_id = $1 AND user_id = $2 FOR UPDATE`,
+		m.Project.ID, target.ID).Scan(&old); err != nil {
+		return err
+	}
+	// Bleibt jemand Mitarbeiter, ändert sich die Funktion nur über das Team
+	if old == req.Status {
+		return noContent(w)
+	}
+	var function *string
+	err = tx.QueryRow(ctx,
+		`UPDATE project_members SET status = $3, function_id = $4 WHERE project_id = $1 AND user_id = $2
+		 RETURNING (SELECT f.name FROM functions f WHERE f.id = $4)`,
+		m.Project.ID, target.ID, req.Status, functionID).Scan(&function)
+	if isForeignKeyViolation(err) {
+		return errorf(http.StatusBadRequest, "Unbekannte Funktion")
+	}
+	if err != nil {
+		return err
+	}
+	if err := s.audit(ctx, tx, auditEntry{Actor: m.User, ProjectID: &m.Project.ID, Action: actionStatusChanged,
+		Target: target, Details: map[string]any{"vorher": old, "nachher": req.Status, "funktion": function}}); err != nil {
+		return err
+	}
+	if err := tx.Commit(ctx); err != nil {
+		return err
+	}
+	return noContent(w)
 }
 
-// changeMembership setzt Rolle oder Status (column) eines Mitglieds und protokolliert alten und neuen Wert.
+// changeMembership setzt die Rolle (column) eines Mitglieds und protokolliert alten und neuen Wert.
 func (s *Server) changeMembership(w http.ResponseWriter, r *http.Request, m *Member, target *User, column, value, action string) error {
 	ctx := r.Context()
 	tx, err := s.db.Begin(ctx)
@@ -157,3 +199,57 @@ func (s *Server) getEmergencyContact(w http.ResponseWriter, r *http.Request, m *
 	writeJSON(w, http.StatusOK, emergencyContact{target.EmergencyName, target.EmergencyPhone, target.EmergencyRelation})
 	return nil
 }
+
+// // getMemberDetails liefert für alle Mitarbeiter die historie, wann registriert, Änderungen von Rolle und anzahl events, bedingt UserStatus.StatusMitarbeiter
+// func (s *Server) getMemberDetails(w http.ResponseWriter, r *http.Request, caller *Member, target *Member, column, value, action string) error {
+// 	ctx := r.Context()
+
+// 	// Verify caller and target are present and both are at least a mitarbeiter
+// 	if caller.User == nil {
+// 		return fmt.Errorf("no caller present in request (nil)")
+// 	}
+
+// 	if caller.Status != StatusMitarbeiter {
+// 		return fmt.Errorf("userstate of caller is not %s as required - current state: %s", StatusMitarbeiter, caller.Status)
+// 	}
+
+// 	tx, err := s.db.Begin(ctx)
+// 	if err != nil {
+// 		return err
+// 	}
+
+// 	if target.User != nil {
+// 		if target.Status != StatusMitarbeiter {
+// 			return fmt.Errorf("userstate of target is not %s as required - current state: %s", StatusMitarbeiter, target.Status)
+// 		}
+// 	} else {
+// 		return fmt.Errorf("no target present in request (nil)")
+// 	}
+
+// 	defer tx.Rollback(ctx)
+
+// 	// get all audit events from audit table that are associated with the user
+
+// 	var records []AuditRecord
+// 	if err := tx.QueryRow(ctx,
+// 		`SELECT * FROM `, "",
+// 	).Scan(&records); err != nil {
+// 		return err
+// 	}
+
+// 	//
+// 	writeJSON(w, http.StatusOK, MemberDetails{})
+// 	return nil
+// }
+
+// type MemberDetails struct {
+// 	Registered     time.Time  `json:"registered"`
+// 	EventsAttended int        `json:"eventsAttended"`
+// 	RoleChange     RoleChange `json:"roleChange"`
+// }
+
+// type RoleChange struct {
+// 	From string    `json:"from"`
+// 	To   string    `json:"from"`
+// 	Date time.Time `json:"date"`
+// }

@@ -24,6 +24,7 @@ Stand: **ja** umgesetzt, **teilweise**, **offen**, **nein** bewusst nicht umgese
 | Events erfassen nur durch Projektleiter und Admins | ja | Mitarbeiter checken ein und erfassen Gäste |
 | Funktionen mit Lohn pro Einsatz (JC, JSC, SC, PL über Zeiterfassung) | ja | Pro Projekt, Administration |
 | Team am Event, nur PL | ja | Verantwortlicher PL automatisch dabei |
+| Nur Mitarbeiter haben eine Funktion, jeder Mitarbeiter hat eine | ja | Status Mitarbeiter nur mit Funktion, ohne Status keine Funktion; Team zeigt nur Mitarbeiter |
 | Auszahlung mit Unterschrift, druckbar | ja | Spesenblatt nach Papiervorlage |
 | Spalten „Hintergrund Stunden“, „Reise Tageskurs“ | offen | Keine Daten in der App |
 

@@ -90,8 +90,9 @@ func (s *Server) createGuest(w http.ResponseWriter, r *http.Request, m *Member) 
 	if !p.Status.Valid() {
 		return errorf(http.StatusBadRequest, "Bitte Status auswählen")
 	}
-	if err := checkStatusChange(m.Role, "", p.Status); err != nil {
-		return err
+	// Mitarbeiter brauchen eine Funktion: den Status vergeben Projekt-Admins unter Teilnehmer
+	if p.Status == StatusMitarbeiter {
+		return errorf(http.StatusBadRequest, "Gäste können nicht als Mitarbeiter erfasst werden")
 	}
 	birth, err := validateProfile(&p.User)
 	if err != nil {

@@ -1,5 +1,13 @@
 import { Fragment, useCallback, useEffect, useState, type ReactNode } from 'react'
-import { errorMessage, type EmergencyContact, type MemberSummary, type Page, type Role, type UserStatus } from '../api'
+import {
+  errorMessage,
+  type EmergencyContact,
+  type Func,
+  type MemberSummary,
+  type Page,
+  type Role,
+  type UserStatus,
+} from '../api'
 import { isAdmin, isProjectLead } from '../auth'
 import { PhoneIcon, WarningIcon } from '../components/Icons'
 import { SanctionBadge, SanctionForm } from '../components/Sanctions'
@@ -20,6 +28,9 @@ export default function MembersPage() {
   const admin = isAdmin(member)
   const lead = isProjectLead(member)
   const [panel, setPanel] = useState<Panel | null>(null)
+  // Funktionen für neue Mitarbeiter; staffing: Person, für die gerade die Funktion gewählt wird
+  const [functions, setFunctions] = useState<Func[]>([])
+  const [staffing, setStaffing] = useState<string | null>(null)
   const fetchPage = useCallback(
     (q: string, offset: number) => api.get<Page<MemberSummary>>(`/members?q=${encodeURIComponent(q)}&offset=${offset}`),
     [api],
@@ -31,14 +42,36 @@ export default function MembersPage() {
     setPanel((p) => (p?.userId === userId && p.kind === kind ? null : { userId, kind }))
   }
 
-  async function change(m: MemberSummary, field: 'role' | 'status', value: Role | UserStatus) {
+  useEffect(() => {
+    if (!admin) return
+    api
+      .get<Func[]>('/functions')
+      .then(setFunctions)
+      .catch((err) => setError(errorMessage(err)))
+  }, [api, admin, setError])
+
+  async function change(m: MemberSummary, field: 'role' | 'status', value: Role | UserStatus, functionId?: number) {
     setError('')
     try {
-      await api.put(`/members/${m.id}/${field}`, { [field]: value })
+      await api.put(`/members/${m.id}/${field}`, { [field]: value, functionId })
       updateItems((list) => list.map((x) => (x.id === m.id ? { ...x, [field]: value } : x)))
     } catch (err) {
       setError(errorMessage(err))
     }
+  }
+
+  // Mitarbeiter brauchen eine Funktion: erst nach deren Wahl wird gespeichert. Wer den Status verliert, verliert
+  // auch die Funktion und damit den Platz im Team.
+  function changeStatus(m: MemberSummary, status: UserStatus) {
+    setStaffing(status === 'mitarbeiter' && m.status !== 'mitarbeiter' ? m.id : null)
+    if (status === 'mitarbeiter' || status === m.status) return
+    if (m.status === 'mitarbeiter' && !confirm(`${personName(m)} ist danach nicht mehr im Team. Status ändern?`)) return
+    change(m, 'status', status)
+  }
+
+  function chooseFunction(m: MemberSummary, value: string) {
+    setStaffing(null)
+    if (value) change(m, 'status', 'mitarbeiter', Number(value))
   }
 
   const labels = statusLabels(project.region)
@@ -96,11 +129,26 @@ export default function MembersPage() {
                             ))}
                           </select>
                           <StatusSelect
-                            value={m.status}
+                            value={staffing === m.id ? 'mitarbeiter' : m.status}
                             region={project.region}
                             canSetStaff
-                            onChange={(status) => change(m, 'status', status)}
+                            onChange={(status) => changeStatus(m, status)}
                           />
+                          {staffing === m.id && (
+                            <label>
+                              Funktion
+                              <select required value="" onChange={(e) => chooseFunction(m, e.target.value)}>
+                                <option value="" disabled>
+                                  Bitte wählen
+                                </option>
+                                {functions.map((f) => (
+                                  <option key={f.id} value={f.id}>
+                                    {f.name}
+                                  </option>
+                                ))}
+                              </select>
+                            </label>
+                          )}
                         </>
                       ) : (
                         <>

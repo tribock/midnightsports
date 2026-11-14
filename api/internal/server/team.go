@@ -20,12 +20,12 @@ type Function struct {
 }
 
 type TeamMember struct {
-	ID           string  `json:"id"`
-	Email        string  `json:"email"`
-	Role         string  `json:"role"`
-	Name         string  `json:"name"`
-	FunctionID   *int    `json:"functionId"`
-	FunctionName *string `json:"functionName"`
+	ID           string `json:"id"`
+	Email        string `json:"email"`
+	Role         string `json:"role"`
+	Name         string `json:"name"`
+	FunctionID   int    `json:"functionId"`
+	FunctionName string `json:"functionName"`
 }
 
 type StaffEntry struct {
@@ -107,7 +107,7 @@ func (s *Server) deleteFunction(w http.ResponseWriter, r *http.Request, m *Membe
 	}
 	err = s.execOne(r.Context(), `DELETE FROM functions WHERE id = $1 AND project_id = $2`, id, m.Project.ID)
 	if isForeignKeyViolation(err) {
-		return errorf(http.StatusConflict, "Die Funktion ist in Events eingesetzt und kann nicht gelöscht werden")
+		return errorf(http.StatusConflict, "Die Funktion ist Mitarbeitern zugeteilt oder in Events eingesetzt und kann nicht gelöscht werden")
 	}
 	if err != nil {
 		return err
@@ -117,14 +117,14 @@ func (s *Server) deleteFunction(w http.ResponseWriter, r *http.Request, m *Membe
 
 // --- Team ---
 
-// listTeam liefert die Projektleiter, Mitarbeiter und Admins des Projekts mit ihrer Funktion.
+// listTeam liefert die Mitarbeiter (Status) des Projekts mit ihrer Funktion.
 func (s *Server) listTeam(w http.ResponseWriter, r *http.Request, m *Member) error {
 	rows, err := s.db.Query(r.Context(),
 		`SELECT u.id::text, COALESCE(u.email, ''), pm.role, trim(u.first_name || ' ' || u.last_name), f.id, f.name
 		 FROM project_members pm
 		 JOIN users u ON u.id = pm.user_id
-		 LEFT JOIN functions f ON f.id = pm.function_id
-		 WHERE pm.project_id = $1 AND pm.role IN ('projektleiter', 'mitarbeiter', 'admin')
+		 JOIN functions f ON f.id = pm.function_id
+		 WHERE pm.project_id = $1 AND pm.status = 'mitarbeiter'
 		 ORDER BY u.last_name, u.first_name, u.email`, m.Project.ID)
 	if err != nil {
 		return err
@@ -137,14 +137,17 @@ func (s *Server) listTeam(w http.ResponseWriter, r *http.Request, m *Member) err
 	return nil
 }
 
-// setMemberFunction legt die Funktion einer Person im Team fest (null = keine). Die Funktion bestimmt den Lohn,
-// deshalb wird die Änderung protokolliert.
+// setMemberFunction ändert die Funktion eines Mitarbeiters (Status). Jeder Mitarbeiter hat eine Funktion. Die
+// Funktion bestimmt den Lohn, deshalb wird die Änderung protokolliert.
 func (s *Server) setMemberFunction(w http.ResponseWriter, r *http.Request, m *Member) error {
 	var req struct {
 		FunctionID *int `json:"functionId"`
 	}
 	if err := decode(r, &req); err != nil {
 		return err
+	}
+	if req.FunctionID == nil {
+		return errorf(http.StatusBadRequest, "Mitarbeiter brauchen eine Funktion")
 	}
 	target, err := s.projectMemberUser(r, m)
 	if err != nil {
@@ -159,14 +162,14 @@ func (s *Server) setMemberFunction(w http.ResponseWriter, r *http.Request, m *Me
 	var name *string
 	err = tx.QueryRow(ctx,
 		`UPDATE project_members pm SET function_id = $3
-		 WHERE pm.project_id = $1 AND pm.user_id = $2 AND pm.role IN ('projektleiter', 'mitarbeiter', 'admin')
+		 WHERE pm.project_id = $1 AND pm.user_id = $2 AND pm.status = 'mitarbeiter'
 		 RETURNING (SELECT f.name FROM functions f WHERE f.id = $3)`,
 		m.Project.ID, target.ID, req.FunctionID).Scan(&name)
 	switch {
 	case isForeignKeyViolation(err):
 		return errorf(http.StatusBadRequest, "Unbekannte Funktion")
 	case errors.Is(err, pgx.ErrNoRows):
-		return errorf(http.StatusNotFound, "Person ist nicht im Team")
+		return errorf(http.StatusNotFound, "Person ist nicht im Team (kein Mitarbeiter)")
 	case err != nil:
 		return err
 	}
@@ -259,11 +262,8 @@ func saveStaff(ctx context.Context, tx pgx.Tx, projectID, eventID int, staff []s
 		if !ok {
 			return errorf(http.StatusBadRequest, "Person ist nicht im Team")
 		}
-		if m.functionID == nil {
-			return errorf(http.StatusBadRequest, m.name+" hat keine Funktion im Team")
-		}
 		prev, hadPrev := existing[id]
-		snap := staffEntry(prev, hadPrev, *m.functionID, m.salary)
+		snap := staffEntry(prev, hadPrev, m.functionID, m.salary)
 		batch.Queue(`INSERT INTO event_staff (event_id, user_id, function_id, salary, signature, signed_at, signed_by)
 			 VALUES ($1, $2, $3, $4, $5, $6, $7)`,
 			eventID, id, snap.functionID, snap.salary, snap.signature, snap.signedAt, snap.signedBy)
@@ -273,18 +273,18 @@ func saveStaff(ctx context.Context, tx pgx.Tx, projectID, eventID int, staff []s
 
 type teamMember struct {
 	name       string
-	functionID *int
+	functionID int
 	salary     *float64
 }
 
-// loadTeamMembers lädt Funktion und Lohn der gewählten Personen in einer Abfrage. Nur Personen im Team des Projekts.
+// loadTeamMembers lädt Funktion und Lohn der gewählten Personen in einer Abfrage. Nur Mitarbeiter (Status) des Projekts.
 func loadTeamMembers(ctx context.Context, tx pgx.Tx, projectID int, ids []string) (map[string]teamMember, error) {
 	rows, err := tx.Query(ctx,
 		`SELECT u.id::text, trim(u.first_name || ' ' || u.last_name), pm.function_id, f.salary::float8
 		 FROM project_members pm
 		 JOIN users u ON u.id = pm.user_id
-		 LEFT JOIN functions f ON f.id = pm.function_id
-		 WHERE pm.project_id = $1 AND u.id = ANY($2::uuid[]) AND pm.role IN ('projektleiter', 'mitarbeiter', 'admin')`,
+		 JOIN functions f ON f.id = pm.function_id
+		 WHERE pm.project_id = $1 AND u.id = ANY($2::uuid[]) AND pm.status = 'mitarbeiter'`,
 		projectID, ids)
 	if err != nil {
 		return nil, err

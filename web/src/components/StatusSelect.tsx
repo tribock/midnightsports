@@ -2,8 +2,8 @@ import type { UserStatus } from '../api'
 import { statusLabels } from '../format'
 
 /**
- * Status im Projekt (Herkunft). Mitarbeiter vergeben nur Projekt-Admins (canSetStaff),
- * alle anderen wählen zwischen Schüler/in aus der Region und Gast extern.
+ * Status im Projekt (Herkunft). Mitarbeiter vergeben nur Projekt-Admins unter Teilnehmer (canSetStaff, zusammen
+ * mit der Funktion), alle anderen wählen zwischen Schüler/in aus der Region und Gast extern.
  */
 export default function StatusSelect({
   value,

@@ -53,8 +53,9 @@ Alles von Mitarbeiter, zusätzlich:
 
 - **Events** anlegen (Datum, Zeitraum, Ort, Standard: Standardort des Projekts), bearbeiten, absagen. Einzeln,
   keine Serien, nicht löschbar. Genau ein verantwortlicher Projektleiter pro Event
-- **Team**: Seite mit allen Projektleitern, Mitarbeitern und Admins, Anzahl pro Funktion, ohne Funktion und total.
-  Jede Person hat eine Funktion (z.B. JC, SC), vergeben durch Projekt-Admins
+- **Team**: Seite mit allen Mitarbeitern (Status), Anzahl pro Funktion und total. Jeder Mitarbeiter hat eine
+  Funktion (z.B. JC, SC): Projekt-Admins wählen sie unter Teilnehmer zusammen mit dem Status Mitarbeiter und ändern
+  sie im Team. Wer den Status verliert, verliert auch die Funktion
 - **Einsatz am Event**: Team-Mitglieder auswählen, Betrag kommt aus der Funktion (nicht editierbar). Funktionen ohne
   Lohn (z.B. PL) über die Zeiterfassung. Der Betrag wird beim Einteilen festgehalten, spätere Lohnänderungen ändern
   vergangene Events nicht
@@ -77,8 +78,8 @@ Alles von Projektleiter im eigenen Projekt, zusätzlich:
   verwarnen und sperren (Warndreieck)
 - **Administration**:
   - Projekt-Link mit QR-Code
-  - Funktionen mit Lohn pro Einsatz (Aadorf: JC 20, JSC 40, SC 80, PL über Zeiterfassung). Funktionen, die an
-    Events eingesetzt sind, sind nicht löschbar
+  - Funktionen mit Lohn pro Einsatz (Aadorf: JC 20, JSC 40, SC 80, PL über Zeiterfassung). Funktionen, die
+    Mitarbeitern zugeteilt oder an Events eingesetzt sind, sind nicht löschbar
   - Zugriff auf Notfallkontakte: Rollen und Funktionen wählen (Standard: Projektleiter)
   - Fristen: Sperre nach X Tagen aufheben oder in Verwarnung umwandeln, Verwarnung nach Y Tagen löschen
   - Geteilte Verwarnungen: Anfragen anderer Projekte einwilligen oder ablehnen, Teilen beenden

@@ -81,12 +81,13 @@ CROSS JOIN LATERAL (SELECT (ARRAY['Müller', 'Meier', 'Schmid', 'Keller', 'Weber
     'Bühler'])[(d.n * 7) % 20 + 1] AS name) AS l;
 
 -- Mitgliedschaften im eigenen Projekt: die ersten 12 Personen jedes Projekts sind das Team
--- (1 Projekt-Admin, 3 Projektleiter, 8 Mitarbeiter), jede fünfte Person ist Gast extern
+-- (1 Projekt-Admin, 3 Projektleiter, 8 Mitarbeiter), jede fünfte Person ist Gast extern. Den Status Mitarbeiter
+-- setzt erst die Zuteilung der Funktion (Mitarbeiter brauchen eine Funktion)
 INSERT INTO project_members (project_id, user_id, role, status)
 SELECT p.id, d.user_id,
        CASE WHEN d.pos = 1 THEN 'admin' WHEN d.pos <= 4 THEN 'projektleiter' WHEN d.pos <= 12 THEN 'mitarbeiter'
             ELSE 'teilnehmer' END,
-       CASE WHEN d.pos <= 12 THEN 'mitarbeiter' WHEN d.n % 5 = 0 THEN 'gast_extern' ELSE 'schueler' END
+       CASE WHEN d.pos <= 12 THEN '' WHEN d.n % 5 = 0 THEN 'gast_extern' ELSE 'schueler' END
 FROM demo_people d
 JOIN demo_projects p ON p.idx = d.home;
 
@@ -98,7 +99,8 @@ JOIN demo_projects p ON p.idx = d.partner;
 
 -- Funktionen des Teams: Admin und Projektleiter die Funktion ohne Lohn, Mitarbeiter reihum die übrigen
 UPDATE project_members pm
-SET function_id = CASE
+SET status = 'mitarbeiter',
+    function_id = CASE
     WHEN pm.role IN ('admin', 'projektleiter') THEN
         (SELECT f.id FROM functions f WHERE f.project_id = pm.project_id AND f.salary IS NULL ORDER BY f.id LIMIT 1)
     ELSE
