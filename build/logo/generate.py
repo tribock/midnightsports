@@ -1,4 +1,4 @@
-"""Erzeugt alle Logos der App aus den EPS-Vorlagen in docs/logo (Aufruf: make logos).
+"""Erzeugt alle Logos der App aus den EPS-Vorlagen einer Marke in docs/logo/<marke> (Aufruf: make logos LOGO=<marke>).
 
 Die EPS-Dateien stammen von Cairo und enthalten nur Pfade und Füllfarben. Sie werden deshalb
 verlustfrei in SVG umgewandelt. Die PNG-Dateien (Homescreen, Wallet) erzeugt rsvg-convert.
@@ -6,10 +6,11 @@ verlustfrei in SVG umgewandelt. Die PNG-Dateien (Homescreen, Wallet) erzeugt rsv
 
 import re
 import subprocess
+import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
-SRC = ROOT / "docs/logo"
+SRC = ROOT / "docs/logo" / (sys.argv[1] if len(sys.argv) > 1 else "midnightsports-aadorf")
 PUBLIC = ROOT / "web/public"
 WALLET = ROOT / "api/internal/wallet/assets"
 WHITE = "#ffffff"

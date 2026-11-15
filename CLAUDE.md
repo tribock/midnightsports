@@ -84,7 +84,7 @@ gitignored and may be missing. Their content is captured in `docs/anforderungen.
 - Printing: render a `PrintSheet` (`components/PrintSheet.tsx`, hidden on screen, the only thing printed) and call `printDocument(filename)`. "PDF" means the browser's "Save as PDF"
 - Pages with heavy libraries are lazy-loaded in `App.tsx`
 - Project logos: uploaded logo (`/api/public/projects/{slug}/logo`) or the default logo, always through `projectLogo(...)` in `project.tsx`
-- Logos: sources are `docs/logo/*.eps`. `make logos` (`build/logo/generate.py`, needs `rsvg-convert`) generates `web/public/icon.svg`, `logo.svg`, `logo-white.svg` (header, dark mode), the PNG icons and the wallet images in `api/internal/wallet/assets/`. Never edit the generated files by hand
+- Logos: sources are `docs/logo/<brand>/*.eps` (`midnightsports-aadorf` belongs to Aadorf, `conventus` is the working name of the app; see `docs/logo/README.md`). `make brand` (`build/logo/brand.py`) creates the sources for a new name. `make logos LOGO=<brand>` (`build/logo/generate.py`, needs `rsvg-convert`) generates `web/public/icon.svg`, `logo.svg`, `logo-white.svg` (header, dark mode), the PNG icons and the wallet images in `api/internal/wallet/assets/`. Never edit the generated files by hand
 
 ## Security
 

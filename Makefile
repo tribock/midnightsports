@@ -22,9 +22,11 @@ export COMPOSE_PROJECT_NAME
 
 # Google Cloud (Demo und Produktion), können in .env überschrieben werden
 GCP_PROJECT_ID ?= midnightsports
+# Marke für make logos (Ordner in docs/logo)
+LOGO ?= midnightsports-aadorf
 GCP_REGION ?= europe-west6
 
-.PHONY: run down db db-reset psql containers dev test build version demo-yaml demo-yaml-check deploy-demo deploy-yaml deploy-yaml-check deploy instances logos
+.PHONY: run down db db-reset psql containers dev test build version demo-yaml demo-yaml-check deploy-demo deploy-yaml deploy-yaml-check deploy instances logos brand
 
 ## run: App und PostgreSQL in Docker starten (http://localhost:8080)
 run:
@@ -173,9 +175,13 @@ deploy-yaml-check:
 deploy: deploy-yaml-check build
 	@$(PROD_ENV); $(call REPLACE_SERVICE,build/deploy/deploy.yaml,$(PROD_SUBST),$$SERVICE)
 
-## logos: Logos und Icons aus docs/logo/*.eps erzeugen (braucht python3 und rsvg-convert, brew install librsvg)
+## logos: Logos und Icons der App aus docs/logo/$(LOGO)/*.eps erzeugen (braucht python3 und rsvg-convert, brew install librsvg)
 logos:
-	python3 build/logo/generate.py
+	python3 build/logo/generate.py $(LOGO)
+
+## brand: Logo-Vorlagen einer neuen Marke erzeugen, z.B. make brand NAME=conventus TAGLINE="events · teams · check-in" COLOR=#3346d3
+brand:
+	python3 build/logo/brand.py "$(NAME)" "$(TAGLINE)" "$(COLOR)"
 
 ## instances: Laufende Instanzen pro Revision der letzten 5 Minuten (SERVICE=midnightsports-demo für die Demo)
 instances:
