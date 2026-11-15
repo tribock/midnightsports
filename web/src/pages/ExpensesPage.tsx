@@ -1,23 +1,23 @@
 import { useCallback, useEffect, useState, type FormEvent } from 'react'
-import { errorMessage, type Event, type TimeEntry } from '../api'
-import { isLeader } from '../auth'
+import { errorMessage, type Event, type ExpenseEntry } from '../api'
+import { isProjectLead } from '../auth'
 import { formatShortDate, parseDecimal, todayISO } from '../format'
 import { useProject } from '../project'
 
-const emptyForm = { date: todayISO(), hours: '', description: '', eventId: '' }
+const emptyForm = { date: todayISO(), amount: '', reason: '', eventId: '' }
 
-export default function TimeEntriesPage() {
+export default function ExpensesPage() {
   const { api, member } = useProject()
-  const leader = isLeader(member)
+  const projectLead = isProjectLead(member)
   const [all, setAll] = useState(false)
-  const [entries, setEntries] = useState<TimeEntry[]>([])
+  const [entries, setEntries] = useState<ExpenseEntry[]>([])
   const [events, setEvents] = useState<Event[]>([])
   const [form, setForm] = useState(emptyForm)
   const [error, setError] = useState('')
 
   const load = useCallback(() => {
     api
-      .get<TimeEntry[]>(`/time-entries${all ? '?all=true' : ''}`)
+      .get<ExpenseEntry[]>(`/expenses${all ? '?all=true' : ''}`)
       .then(setEntries)
       .catch((err) => setError(errorMessage(err)))
   }, [api, all])
@@ -33,10 +33,10 @@ export default function TimeEntriesPage() {
     e.preventDefault()
     setError('')
     try {
-      await api.post('/time-entries', {
+      await api.post('/expenses', {
         date: form.date,
-        hours: parseDecimal(form.hours),
-        description: form.description,
+        amount: parseDecimal(form.amount),
+        reason: form.reason,
         eventId: form.eventId ? Number(form.eventId) : null,
       })
       setForm({ ...emptyForm, date: form.date })
@@ -46,21 +46,21 @@ export default function TimeEntriesPage() {
     }
   }
 
-  async function remove(entry: TimeEntry) {
+  async function remove(entry: ExpenseEntry) {
     if (!confirm('Eintrag löschen?')) return
-    await api.del(`/time-entries/${entry.id}`).catch((err) => setError(errorMessage(err)))
+    await api.del(`/expenses/${entry.id}`).catch((err) => setError(errorMessage(err)))
     load()
   }
 
-  const total = entries.reduce((sum, e) => sum + e.hours, 0)
+  const total = entries.reduce((sum, e) => sum + e.amount, 0)
   return (
     <div className="stack">
       <div className="page-header">
-        <h1>Zeiterfassung</h1>
-        {admin && (
+        <h1>Spesen</h1>
+        {projectLead && (
           <div className="actions">
             <button onClick={() => setAll(!all)}>{all ? 'Nur meine' : 'Alle anzeigen'}</button>
-            <a className="button" href={`/api/p/${member.project.slug}/time-entries/export.csv`}>
+            <a className="button" href={`/api/p/${member.project.slug}/expenses/export.csv`}>
               CSV exportieren
             </a>
           </div>
@@ -74,14 +74,14 @@ export default function TimeEntriesPage() {
             <input type="date" required value={form.date} onChange={(e) => setForm({ ...form, date: e.target.value })} />
           </label>
           <label>
-            Stunden
+            Betrag (CHF)
             <input
               inputMode="decimal"
               required
               pattern="[0-9]+([.,][0-9]{1,2})?"
-              placeholder="z.B. 3.5"
-              value={form.hours}
-              onChange={(e) => setForm({ ...form, hours: e.target.value })}
+              placeholder="z.B. 3.50"
+              value={form.amount}
+              onChange={(e) => setForm({ ...form, amount: e.target.value })}
             />
           </label>
         </div>
@@ -97,8 +97,9 @@ export default function TimeEntriesPage() {
           </select>
         </label>
         <label>
-          Beschreibung
-          <input value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} />
+          Begründung
+          <input value={form.reason
+          } onChange={(e) => setForm({ ...form, reason: e.target.value })} />
         </label>
         {error && <p className="error">{error}</p>}
         <button type="submit" className="primary">
@@ -111,8 +112,8 @@ export default function TimeEntriesPage() {
           <tr>
             <th>Datum</th>
             {all && <th>Name</th>}
-            <th className="num">Std.</th>
-            <th>Beschreibung</th>
+            <th className="num">Betrag (CHF)</th>
+            <th>Begründung</th>
             <th />
           </tr>
         </thead>
@@ -121,9 +122,9 @@ export default function TimeEntriesPage() {
             <tr key={e.id}>
               <td>{formatShortDate(e.date)}</td>
               {all && <td>{e.userName}</td>}
-              <td className="num">{e.hours.toFixed(2)}</td>
+              <td className="num">{e.amount.toFixed(2)}</td>
               <td>
-                {e.description}
+                {e.reason}
                 {e.eventDate && <span className="muted small"> · Event {formatShortDate(e.eventDate)}</span>}
               </td>
               <td>

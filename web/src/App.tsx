@@ -11,7 +11,7 @@ import {
   useSearchParams,
 } from 'react-router-dom'
 import { api, type BuildInfo, type Role } from './api'
-import { afterLogin, AuthProvider, canViewMembers, isAdmin, isProjectLead, rememberAfterLogin, useAuth } from './auth'
+import { afterLogin, AuthProvider, canViewMembers, isAdmin, isLeader, isProjectLead, rememberAfterLogin, useAuth } from './auth'
 import { roleLabels } from './format'
 import AdminProjectsPage from './pages/AdminProjectsPage'
 import AdminUsersPage from './pages/AdminUsersPage'
@@ -27,6 +27,7 @@ import ProfilePage from './pages/ProfilePage'
 import ProjectJoinPage from './pages/ProjectJoinPage'
 import ProjectSearchPage from './pages/ProjectSearchPage'
 import StatisticsPage from './pages/StatisticsPage'
+import ExpensesPage from './pages/ExpensesPage'
 import TeamPage from './pages/TeamPage'
 import TimeEntriesPage from './pages/TimeEntriesPage'
 import { projectLogo, ProjectProvider, useOptionalProject, useProject } from './project'
@@ -72,11 +73,13 @@ export default function App() {
               <Route path="profil" element={<ProfilePage />} />
               <Route element={<RequireRole roles={['projektleiter', 'mitarbeiter', 'admin']} />}>
                 <Route path="events/:id/scan" element={<ScanPage />} />
+                <Route path="spesen" element={<ExpensesPage />} />
               </Route>
               <Route element={<RequireRole roles={['projektleiter', 'admin']} />}>
                 <Route path="events/neu" element={<EventFormPage />} />
                 <Route path="events/:id/bearbeiten" element={<EventFormPage />} />
                 <Route path="zeiten" element={<TimeEntriesPage />} />
+                
                 <Route path="team" element={<TeamPage />} />
                 <Route path="statistik" element={<StatisticsPage />} />
                 <Route path="events/:id/auszahlung" element={<PayoutPage />} />
@@ -185,6 +188,7 @@ function Layout() {
               <NavLink to={`${base}/events`}>Events</NavLink>
               <NavLink to={`${base}/qr`}>Mein QR-Code</NavLink>
               {isProjectLead(ctx.member) && <NavLink to={`${base}/zeiten`}>Zeiterfassung</NavLink>}
+              {isLeader(ctx.member) && <NavLink to={`${base}/spesen`}>Spesen</NavLink>}
               {isProjectLead(ctx.member) && <NavLink to={`${base}/team`}>Team</NavLink>}
               {isProjectLead(ctx.member) && <NavLink to={`${base}/statistik`}>Statistik</NavLink>}
               {canViewMembers(ctx.member) && <NavLink to={`${base}/teilnehmer`}>Teilnehmer</NavLink>}

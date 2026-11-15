@@ -271,6 +271,18 @@ export interface Attendance {
   other: number
 }
 
+export interface ExpenseEntry {
+  id: number
+  userId: string
+  userName: string
+  date: string
+  amount: number
+  reason: string
+  eventId: number | null
+  eventDate: string
+}
+
+
 /** Statistik eines Zeitraums: vergangene, nicht abgesagte Events */
 export interface Statistics {
   from: string

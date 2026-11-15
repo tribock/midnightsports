@@ -32,6 +32,7 @@ Details:
 - Teilnehmerliste pro Event ansehen
 - Einchecken per QR-Scanner oder Suche, Gäste erfassen
 - Einsatz (Team) ansehen, ohne Lohn
+- **Spesen**: Datum, Betrag (CHF, bis 1000), Begründung, optional Event. Nur eigene Einträge
 - Keine Events erfassen, keine Auszahlung, keine Berichte, keine Zeiterfassung, nicht als Projektleiter einteilbar
 
 ### Check-in
@@ -71,6 +72,7 @@ Alles von Mitarbeiter, zusätzlich:
   Schnitt Teilnehmende pro Event total und nach W/M/D, pro Person im Team Einsätze, ausbezahlter Betrag (nur
   unterschrieben) und Stunden der Zeiterfassung, Totale für Mitarbeiter (CHF) und PL (Stunden)
 - **Zeiterfassung**: Datum, Stunden, Beschreibung, optional Event. Eigene Einträge, Projekt-Admins sehen alle
+- **Spesen** aller Mitarbeiter ansehen, löschen und als CSV exportieren
 - **Verwarnen und sperren** mit Grund: Seite Teilnehmer oder Teilnehmerliste am Event (Warndreieck)
 - **Notfallkontakte**, wenn die Rolle Zugriff hat (Standard)
 

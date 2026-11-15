@@ -28,13 +28,14 @@ Stand: **ja** umgesetzt, **teilweise**, **offen**, **nein** bewusst nicht umgese
 | Auszahlung mit Unterschrift, druckbar | ja | Spesenblatt nach Papiervorlage |
 | Spalten „Hintergrund Stunden“, „Reise Tageskurs“ | offen | Keine Daten in der App |
 
-## Events und Zeiterfassung
+## Events, Zeiterfassung und Spesen
 
 | Anforderung | Stand | Umsetzung |
 |---|---|---|
 | Bericht zum Event, druckbar | ja | Datum, Ort, PL, Teilnehmer W/M/D, Team, Text |
 | Statistik: Teilnehmer-Schnitt W/M/D, Einsätze des Teams, Auszahlungen, Zeitraum (Standard 8 Monate) | ja | Projektleiter und Admins. Vergangene, nicht abgesagte Events; ausbezahlt = unterschrieben; PL in Stunden der Zeiterfassung (kein Stundenansatz erfasst) |
 | Admin bestätigt verrechnete Zeiteinträge | offen | |
+| Spesen erfassen | ja | Mitarbeiter: eigene Spesen mit Datum, Betrag, Begründung, optional Event. Projektleiter und Admins sehen und löschen alle, CSV-Export (protokolliert) |
 
 ## Personen und Notfallkontakte
 

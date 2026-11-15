@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/csv"
 	"errors"
+	"fmt"
 	"net/http"
 	"slices"
 	"strconv"
@@ -43,7 +44,7 @@ func (s *Server) queryExpenseEntries(ctx context.Context, m *Member, all bool) (
 }
 
 func (s *Server) listExpenseEntries(w http.ResponseWriter, r *http.Request, m *Member) error {
-	// Projektleiter und Admins sehen mit ?all=true  alle Einträge, sonst nur die eigenen
+	// Projektleiter und Admins sehen mit ?all=true alle Einträge, sonst nur die eigenen
 	all := slices.Contains(projectLeads, m.Role) && r.URL.Query().Get("all") == "true"
 	entries, err := s.queryExpenseEntries(r.Context(), m, all)
 	if err != nil {
@@ -63,6 +64,7 @@ func (s *Server) createExpenseEntry(w http.ResponseWriter, r *http.Request, m *M
 		return errorf(http.StatusBadRequest, "Ungültiges Datum")
 	}
 	if in.Amount <= 0 || in.Amount > 1000 {
+		fmt.Println(in.Amount)
 		return errorf(http.StatusBadRequest, "Betrag muss zwischen 0 und 1000 Franken liegen")
 	}
 	// Ein Event muss zum Projekt gehören

@@ -28,8 +28,8 @@ Pro Projekt, jede Rolle kann alles der Rollen darüber.
 | Rolle | Kann |
 |---|---|
 | Teilnehmer | Profil, Projekte suchen und beitreten, Events an- und abmelden, QR-Code und Wallet-Pass |
-| Mitarbeiter | Teilnehmerliste, Check-in (Scan oder manuell), Gäste erfassen |
-| Projektleiter | Events erfassen, Team, Auszahlung, Bericht, Zeiterfassung, Notfallkontakte¹, verwarnen und sperren |
+| Mitarbeiter | Teilnehmerliste, Check-in (Scan oder manuell), Gäste erfassen, eigene Spesen |
+| Projektleiter | Events erfassen, Team, Auszahlung, Bericht, Zeiterfassung, Spesen aller Mitarbeiter, Notfallkontakte¹, verwarnen und sperren |
 | Projekt-Admin | Rollen und Status, Funktionen und Löhne, Notfallzugriff, Orte, Fristen, Einwilligung zum Teilen, Projekt-Link |
 | Globaler Admin | In jedem Projekt Admin. Projekte erfassen, Personen bearbeiten und löschen, Audit-Protokoll |
 
@@ -37,7 +37,8 @@ Pro Projekt, jede Rolle kann alles der Rollen darüber.
 
 ## Datenmodell
 
-Schema: `api/internal/db/migrations/001_init.sql`, mit Midnightsports Aadorf als erstem Projekt.
+Schema: `api/internal/db/migrations/001_init.sql`, mit Midnightsports Aadorf als erstem Projekt. Spesen:
+`002_expenses.sql`.
 
 ```mermaid
 erDiagram
@@ -59,6 +60,8 @@ erDiagram
     events ||--o{ registrations : Anmeldungen
     events ||--o{ checkins : "vor Ort"
     events ||--o| reports : Bericht
+    events |o--o{ expenses : "optional zugeordnet"
+    users ||--o{ expenses : erfasst
     users ||--o{ sanctions : betroffen
 
     users {
@@ -106,6 +109,15 @@ erDiagram
         int function_id "beim Einteilen kopiert"
         numeric salary "beim Einteilen kopiert"
         bytea signature "Empfang bestätigt"
+    }
+    expenses {
+        int id PK
+        int project_id FK
+        uuid user_id FK
+        date date
+        numeric amount "CHF, > 0"
+        text reason
+        int event_id FK "optional, NULL wenn Event gelöscht"
     }
     audit_log {
         bigint id PK
