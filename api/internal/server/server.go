@@ -171,6 +171,8 @@ func (s *Server) routes() {
 
 	p("GET /events/{id}/staff", leaders, s.listStaff)
 	p("GET /events/{id}/payout", projectLeads, s.listPayout)
+	p("PUT /events/{id}/payout/close", projectLeads, s.closePayout)
+	p("DELETE /events/{id}/payout/close", projectLeads, s.reopenPayout)
 	p("PUT /events/{id}/payout/{userId}", projectLeads, s.signPayout)
 	p("DELETE /events/{id}/payout/{userId}", projectLeads, s.unsignPayout)
 

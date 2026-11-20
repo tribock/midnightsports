@@ -29,7 +29,7 @@ Pro Projekt, jede Rolle kann alles der Rollen darüber.
 |---|---|
 | Teilnehmer | Profil, Projekte suchen und beitreten, Events an- und abmelden, QR-Code und Wallet-Pass |
 | Mitarbeiter | Teilnehmerliste, Check-in (Scan oder manuell), Gäste erfassen, eigene Spesen |
-| Projektleiter | Events erfassen, Team, Auszahlung, Bericht, Zeiterfassung, Spesen aller Mitarbeiter, Notfallkontakte¹, verwarnen und sperren |
+| Projektleiter | Events erfassen, Team, Auszahlung (mit Abschluss), Bericht, Zeiterfassung, Spesen aller Mitarbeiter, Notfallkontakte¹, verwarnen und sperren |
 | Projekt-Admin | Rollen und Status, Funktionen und Löhne, Notfallzugriff, Orte, Fristen, Einwilligung zum Teilen, Projekt-Link |
 | Globaler Admin | In jedem Projekt Admin. Projekte erfassen, Personen bearbeiten und löschen, Audit-Protokoll |
 
@@ -103,6 +103,17 @@ erDiagram
         text reason
         timestamptz created_at "Beginn der Frist"
     }
+    events {
+        int id PK
+        int project_id FK
+        int location_id FK
+        uuid leader_id FK
+        timestamptz starts_at
+        bool cancelled
+        bytea payout_signature "PNG, Abschluss durch PL"
+        timestamptz payout_closed_at "NULL = offen"
+        uuid payout_closed_by FK
+    }
     event_staff {
         int event_id PK
         uuid user_id PK
@@ -149,6 +160,9 @@ erDiagram
 Mitarbeiter, ohne ihn Teilnehmer ohne Funktion. Rolle und Funktion ändern Projekt-Admins im Team.
 
 **Einsatz**: Funktion und Betrag werden beim Einteilen kopiert, spätere Lohnänderungen ändern vergangene Events nicht.
+
+**Abschluss der Auszahlung** (`events.payout_*`): Die Projektleitung unterschreibt, danach lehnt der Server Änderungen
+an den Unterschriften im Team ab (409), bis der Abschluss aufgehoben wird.
 
 **Verwarnungen und Sperren**
 - Eine pro Person und Projekt, eine neue ersetzt die bisherige.
@@ -203,6 +217,23 @@ sequenceDiagram
         S-->>B: eingecheckt, Person, Verwarnung
     end
     B->>M: grün, gelb (verwarnt) oder rot (gesperrt)
+```
+
+### Abschluss der Auszahlung
+
+```mermaid
+sequenceDiagram
+    actor PL as Projektleiter
+    participant B as Browser
+    participant S as Server
+
+    PL->>B: "Abschliessen": Zusammenfassung, Warnung bei fehlenden Unterschriften
+    PL->>B: unterschreibt als Projektleitung
+    B->>S: PUT /api/p/{project}/events/{id}/payout/close {PNG}
+    S->>S: Event des Projekts, UPDATE events … WHERE payout_closed_at IS NULL
+    S-->>B: 204, Unterschriften im Team gesperrt
+    PL->>B: "Drucken"
+    B->>PL: Spesenblatt (Druckansicht, als PDF speicherbar)
 ```
 
 ## Migration der bestehenden Daten (offen)

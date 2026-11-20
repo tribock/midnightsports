@@ -63,8 +63,10 @@ Alles von Mitarbeiter, zusätzlich:
   vergangene Events nicht
 - **Auszahlung**: alle eingeteilten Personen mit Funktion und Betrag. Empfang mit handschriftlicher Unterschrift
   (Finger, Stift, Maus), versehentliche Unterschrift entfernbar. Bleibt eine Person mit derselben Funktion
-  eingeteilt, bleibt die Unterschrift erhalten. **Drucken** (oder als PDF): Spesenblatt mit Name, Funktion, Einsatz,
-  Unterschrift, leeren Zeilen, Total pro Funktion und Unterschrift der Projektleitung. Über die Zeiterfassung
+  eingeteilt, bleibt die Unterschrift erhalten. **Abschliessen**: Zusammenfassung (Personen, Unterschriften, Total),
+  Warnung bei fehlenden Unterschriften, die Projektleitung unterschreibt. Danach sind die Unterschriften gesperrt,
+  **Abschluss aufheben** gibt sie frei. **Drucken** (nach dem Abschluss, oder als PDF): Spesenblatt mit Name, Funktion,
+  Einsatz, Unterschrift, leeren Zeilen, Total pro Funktion und Unterschrift der Projektleitung. Über die Zeiterfassung
   abgerechnete Personen separat
 - **Bericht**: einer pro Event (Freitext), Teilnehmerzahl automatisch. **Drucken**: Datum, Ort, Projektleiter,
   Teilnehmer vor Ort (W/M/D), anwesendes Team mit Funktion, Bericht

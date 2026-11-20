@@ -25,7 +25,9 @@ Stand: **ja** umgesetzt, **teilweise**, **offen**, **nein** bewusst nicht umgese
 | Funktionen mit Lohn pro Einsatz (JC, JSC, SC, PL über Zeiterfassung) | ja | Pro Projekt, Administration |
 | Team am Event, nur PL | ja | Verantwortlicher PL automatisch dabei |
 | Nur Mitarbeiter haben Rolle und Funktion, jeder Mitarbeiter hat beide | ja | Status Mitarbeiter nur mit Funktion, ohne Status Teilnehmer ohne Funktion; Rolle und Funktion im Team |
-| Auszahlung mit Unterschrift, druckbar | ja | Spesenblatt nach Papiervorlage |
+| Auszahlung mit Unterschrift, druckbar | ja | Spesenblatt nach Papiervorlage, mit Projektlogo |
+| Auszahlung abschliessen: Zusammenfassung, Warnung bei fehlenden Unterschriften, Unterschrift des PL | ja | Danach Unterschriften gesperrt, Abschluss aufhebbar. Drucken erst nach dem Abschluss |
+| Abendspesen: Name Coach, Unterschrift, Coachart mit Lohn, Total, druckbar | ja | Durch die Auszahlung abgedeckt |
 | Spalten „Hintergrund Stunden“, „Reise Tageskurs“ | offen | Keine Daten in der App |
 
 ## Events, Zeiterfassung und Spesen
