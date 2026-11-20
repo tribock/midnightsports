@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { api, errorMessage, type Me, type User } from '../api'
 import { afterLogin, useAuth } from '../auth'
 import ProfileFields, { type ProfileData } from '../components/ProfileFields'
+import { useUnsavedWarning } from '../preventreload'
 
 export default function ProfilePage() {
   const { user, setUser } = useAuth()
@@ -10,6 +11,9 @@ export default function ProfilePage() {
   const [form, setForm] = useState<ProfileData>(user!)
   const [error, setError] = useState('')
   const [saved, setSaved] = useState(false)
+
+
+  useUnsavedWarning(!saved)
 
   const firstTime = !user!.profileComplete
 
@@ -20,6 +24,7 @@ export default function ProfilePage() {
       const updated = await api.put<User>('/me', form)
       setUser({ ...(user as Me), ...updated })
       setSaved(true)
+
       // Nach dem ersten Ausfüllen weiter zum Projekt-Link oder zur Startseite
       if (firstTime) navigate(afterLogin(true) ?? '/')
     } catch (err) {
@@ -50,6 +55,7 @@ export default function ProfilePage() {
           onChange={(v) => {
             setForm(v)
             setSaved(false)
+    
           }}
         />
         {error && <p className="error">{error}</p>}
