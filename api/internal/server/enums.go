@@ -29,27 +29,29 @@ func (r EmergencyRelation) Valid() bool {
 	return slices.Contains([]EmergencyRelation{RelationVater, RelationMutter, RelationAndere}, r)
 }
 
-// UserStatus beschreibt, woher ein Teilnehmer kommt. Mitarbeiter vergeben nur Admins.
+// UserStatus beschreibt, woher ein Mitglied im Projekt kommt (pro Projekt, gewählt beim Anmelden).
+// "schueler": Schüler/in aus der Region des Projekts. Mitarbeiter vergeben nur Projekt-Admins.
 type UserStatus string
 
 const (
-	StatusSchuelerAadorf UserStatus = "schueler_aadorf"
-	StatusGastExtern     UserStatus = "gast_extern"
-	StatusMitarbeiter    UserStatus = "mitarbeiter"
+	StatusSchueler    UserStatus = "schueler"
+	StatusGastExtern  UserStatus = "gast_extern"
+	StatusMitarbeiter UserStatus = "mitarbeiter"
 )
 
 func (s UserStatus) Valid() bool {
-	return slices.Contains([]UserStatus{StatusSchuelerAadorf, StatusGastExtern, StatusMitarbeiter}, s)
+	return slices.Contains([]UserStatus{StatusSchueler, StatusGastExtern, StatusMitarbeiter}, s)
 }
 
-// checkStatusChange: den Status Mitarbeiter vergeben und entziehen nur Admins.
-// Alle anderen dürfen ihn unverändert lassen, z.B. beim Speichern des eigenen Profils.
-func checkStatusChange(editor *User, current, next UserStatus) error {
-	if editor.Role == RoleAdmin || current == next {
-		return nil
+// staffMembership liefert Rolle und Funktion zu einem neuen Status: Mitarbeiter beginnen mit der Rolle
+// Mitarbeiter und brauchen eine Funktion, alle anderen sind Teilnehmer ohne Funktion (wer den Status Mitarbeiter
+// verliert, verliert auch Rolle und Funktion).
+func staffMembership(status UserStatus, functionID *int) (string, *int, error) {
+	if status != StatusMitarbeiter {
+		return RoleTeilnehmer, nil, nil
 	}
-	if current == StatusMitarbeiter || next == StatusMitarbeiter {
-		return errorf(http.StatusForbidden, "Den Status Mitarbeiter vergeben nur Admins")
+	if functionID == nil {
+		return "", nil, errorf(http.StatusBadRequest, "Mitarbeiter brauchen eine Funktion")
 	}
-	return nil
+	return RoleMitarbeiter, functionID, nil
 }

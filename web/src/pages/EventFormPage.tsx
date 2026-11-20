@@ -1,7 +1,6 @@
 import { useEffect, useState, type FormEvent } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import {
-  api,
   errorMessage,
   type Event,
   type EventInput,
@@ -10,12 +9,13 @@ import {
   type StaffEntry,
   type TeamMember,
 } from '../api'
-import { isProjectLead, useAuth } from '../auth'
+import { isProjectLead } from '../auth'
 import { formatCHF, roleLabels, todayISO } from '../format'
+import { useProject } from '../project'
 
 export default function EventFormPage() {
   const { id } = useParams()
-  const { user } = useAuth()
+  const { api, base, member: user } = useProject()
   const navigate = useNavigate()
   const canStaff = isProjectLead(user)
   const [locations, setLocations] = useState<Location[]>([])
@@ -65,7 +65,7 @@ export default function EventFormPage() {
         }
       })
       .catch((err) => setError(errorMessage(err)))
-  }, [id, canStaff, user])
+  }, [api, id, canStaff, user])
 
   // Verantwortlich sein können Projektleiter und Admins
   const leaders = team.filter(isProjectLead)
@@ -91,10 +91,10 @@ export default function EventFormPage() {
     })
   }
 
-  // Der verantwortliche Projektleiter gehört immer zum Team, sofern er eine Funktion hat.
+  // Der verantwortliche Projektleiter gehört immer zum Team (alle im Team sind Mitarbeiter mit Funktion).
   // Wechselt die Projektleitung, gilt das für die neue Person, die bisherige bleibt nur, wenn sie angekreuzt wurde.
   const responsible = team.find((m) => m.id === form.leaderId)
-  const isResponsible = (m: TeamMember) => m.id === responsible?.id && !!m.functionId
+  const isResponsible = (m: TeamMember) => m.id === responsible?.id
   const selectedTeam = team.filter((m) => staff.has(m.id) || isResponsible(m))
 
   async function submit(e: FormEvent) {
@@ -107,7 +107,7 @@ export default function EventFormPage() {
     }
     try {
       const saved = id ? await api.put<Event>(`/events/${id}`, body) : await api.post<Event>('/events', body)
-      navigate(`/events/${saved.id}`)
+      navigate(`${base}/events/${saved.id}`)
     } catch (err) {
       setError(errorMessage(err))
     }
@@ -181,16 +181,12 @@ export default function EventFormPage() {
                     <input
                       type="checkbox"
                       checked={selected}
-                      disabled={locked || (!m.functionId && !selected)}
+                      disabled={locked}
                       onChange={() => toggleStaff(m)}
                     />
                     <span>
                       {m.name || m.email}
-                      {m.functionName ? (
-                        <span className="badge">{m.functionName}</span>
-                      ) : (
-                        <span className="muted small"> · keine Funktion</span>
-                      )}
+                      <span className="badge">{m.functionName}</span>
                       {locked && <span className="muted small"> · verantwortlich</span>}
                     </span>
                   </label>
@@ -202,11 +198,6 @@ export default function EventFormPage() {
                 </div>
               )
             })}
-            {responsible && !responsible.functionId && (
-              <p className="muted small">
-                {responsible.name || responsible.email} hat keine Funktion und kann nicht eingeteilt werden (Team).
-              </p>
-            )}
             {selectedTeam.length > 0 && (
               <p className="staff-total">
                 <span>Total</span>

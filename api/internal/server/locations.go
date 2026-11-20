@@ -16,9 +16,10 @@ type Location struct {
 	IsDefault bool   `json:"isDefault"`
 }
 
-func (s *Server) listLocations(w http.ResponseWriter, r *http.Request, u *User) error {
+func (s *Server) listLocations(w http.ResponseWriter, r *http.Request, m *Member) error {
 	rows, err := s.db.Query(r.Context(),
-		`SELECT id, name, street, zip, city, is_default FROM locations ORDER BY is_default DESC, name`)
+		`SELECT id, name, street, zip, city, is_default FROM locations WHERE project_id = $1 ORDER BY is_default DESC, name`,
+		m.Project.ID)
 	if err != nil {
 		return err
 	}
@@ -30,20 +31,20 @@ func (s *Server) listLocations(w http.ResponseWriter, r *http.Request, u *User) 
 	return nil
 }
 
-func (s *Server) createLocation(w http.ResponseWriter, r *http.Request, u *User) error {
-	return s.saveLocation(w, r, 0)
+func (s *Server) createLocation(w http.ResponseWriter, r *http.Request, m *Member) error {
+	return s.saveLocation(w, r, m, 0)
 }
 
-func (s *Server) updateLocation(w http.ResponseWriter, r *http.Request, u *User) error {
+func (s *Server) updateLocation(w http.ResponseWriter, r *http.Request, m *Member) error {
 	id, err := pathInt(r, "id")
 	if err != nil {
 		return err
 	}
-	return s.saveLocation(w, r, id)
+	return s.saveLocation(w, r, m, id)
 }
 
-// saveLocation legt einen Ort an (id = 0) oder aktualisiert ihn. Es gibt immer genau einen Standardort.
-func (s *Server) saveLocation(w http.ResponseWriter, r *http.Request, id int) error {
+// saveLocation legt einen Ort des Projekts an (id = 0) oder aktualisiert ihn. Es gibt pro Projekt genau einen Standardort.
+func (s *Server) saveLocation(w http.ResponseWriter, r *http.Request, m *Member, id int) error {
 	var l Location
 	if err := decode(r, &l); err != nil {
 		return err
@@ -61,20 +62,24 @@ func (s *Server) saveLocation(w http.ResponseWriter, r *http.Request, id int) er
 	defer tx.Rollback(ctx)
 
 	if l.IsDefault {
-		if _, err := tx.Exec(ctx, `UPDATE locations SET is_default = false WHERE id <> $1`, id); err != nil {
+		if _, err := tx.Exec(ctx, `UPDATE locations SET is_default = false WHERE project_id = $1 AND id <> $2`,
+			m.Project.ID, id); err != nil {
 			return err
 		}
 	}
 	if id == 0 {
+		// Der erste Ort eines Projekts ist immer der Standardort
 		err = tx.QueryRow(ctx,
-			`INSERT INTO locations (name, street, zip, city, is_default) VALUES ($1, $2, $3, $4, $5) RETURNING id`,
-			l.Name, l.Street, l.Zip, l.City, l.IsDefault).Scan(&l.ID)
+			`INSERT INTO locations (project_id, name, street, zip, city, is_default)
+			 VALUES ($1, $2, $3, $4, $5, $6 OR NOT EXISTS (SELECT 1 FROM locations WHERE project_id = $1))
+			 RETURNING id, is_default`,
+			m.Project.ID, l.Name, l.Street, l.Zip, l.City, l.IsDefault).Scan(&l.ID, &l.IsDefault)
 	} else {
 		// Der Standardort kann nur durch Wahl eines anderen Standardorts geändert werden
 		err = tx.QueryRow(ctx,
-			`UPDATE locations SET name = $2, street = $3, zip = $4, city = $5, is_default = is_default OR $6
-			 WHERE id = $1 RETURNING id, is_default`,
-			id, l.Name, l.Street, l.Zip, l.City, l.IsDefault).Scan(&l.ID, &l.IsDefault)
+			`UPDATE locations SET name = $3, street = $4, zip = $5, city = $6, is_default = is_default OR $7
+			 WHERE id = $1 AND project_id = $2 RETURNING id, is_default`,
+			id, m.Project.ID, l.Name, l.Street, l.Zip, l.City, l.IsDefault).Scan(&l.ID, &l.IsDefault)
 	}
 	if err != nil {
 		return err

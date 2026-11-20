@@ -55,8 +55,8 @@ func parseSignature(s string) ([]byte, error) {
 }
 
 // listPayout liefert alle eingeteilten Personen mit Betrag und Unterschrift sowie den Abschluss.
-func (s *Server) listPayout(w http.ResponseWriter, r *http.Request, u *User) error {
-	eventID, err := pathInt(r, "id")
+func (s *Server) listPayout(w http.ResponseWriter, r *http.Request, m *Member) error {
+	eventID, err := s.projectEvent(r, m)
 	if err != nil {
 		return err
 	}
@@ -103,8 +103,8 @@ func (s *Server) checkPayoutOpen(ctx context.Context, eventID int) error {
 }
 
 // signPayout speichert die Unterschrift, mit der eine Person den Empfang ihres Betrags bestätigt.
-func (s *Server) signPayout(w http.ResponseWriter, r *http.Request, u *User) error {
-	eventID, err := pathInt(r, "id")
+func (s *Server) signPayout(w http.ResponseWriter, r *http.Request, m *Member) error {
+	eventID, err := s.projectEvent(r, m)
 	if err != nil {
 		return err
 	}
@@ -139,7 +139,7 @@ func (s *Server) signPayout(w http.ResponseWriter, r *http.Request, u *User) err
 	err = s.execOne(ctx,
 		`UPDATE event_staff SET signature = $3, signed_at = now(), signed_by = $4
 		 WHERE event_id = $1 AND user_id = $2 AND signature IS NULL`,
-		eventID, userID, img, u.ID)
+		eventID, userID, img, m.ID)
 	if errors.Is(err, errNotFound) {
 		return errorf(http.StatusConflict, "Empfang wurde bereits bestätigt")
 	}
@@ -150,8 +150,8 @@ func (s *Server) signPayout(w http.ResponseWriter, r *http.Request, u *User) err
 }
 
 // unsignPayout entfernt eine Unterschrift, z.B. wenn sie versehentlich erfasst wurde.
-func (s *Server) unsignPayout(w http.ResponseWriter, r *http.Request, u *User) error {
-	eventID, err := pathInt(r, "id")
+func (s *Server) unsignPayout(w http.ResponseWriter, r *http.Request, m *Member) error {
+	eventID, err := s.projectEvent(r, m)
 	if err != nil {
 		return err
 	}
@@ -173,8 +173,8 @@ func (s *Server) unsignPayout(w http.ResponseWriter, r *http.Request, u *User) e
 
 // closePayout schliesst die Auszahlung mit der Unterschrift der Projektleitung ab.
 // Fehlende Unterschriften im Team verhindern den Abschluss nicht, die Übersicht warnt davor.
-func (s *Server) closePayout(w http.ResponseWriter, r *http.Request, u *User) error {
-	eventID, err := pathInt(r, "id")
+func (s *Server) closePayout(w http.ResponseWriter, r *http.Request, m *Member) error {
+	eventID, err := s.projectEvent(r, m)
 	if err != nil {
 		return err
 	}
@@ -195,7 +195,7 @@ func (s *Server) closePayout(w http.ResponseWriter, r *http.Request, u *User) er
 	err = s.execOne(ctx,
 		`UPDATE events SET payout_signature = $2, payout_closed_at = now(), payout_closed_by = $3
 		 WHERE id = $1 AND payout_closed_at IS NULL`,
-		eventID, img, u.ID)
+		eventID, img, m.ID)
 	if errors.Is(err, errNotFound) {
 		return errPayoutClosed
 	}
@@ -206,8 +206,8 @@ func (s *Server) closePayout(w http.ResponseWriter, r *http.Request, u *User) er
 }
 
 // reopenPayout hebt den Abschluss auf, z.B. wenn eine Unterschrift nachgeholt werden muss.
-func (s *Server) reopenPayout(w http.ResponseWriter, r *http.Request, u *User) error {
-	eventID, err := pathInt(r, "id")
+func (s *Server) reopenPayout(w http.ResponseWriter, r *http.Request, m *Member) error {
+	eventID, err := s.projectEvent(r, m)
 	if err != nil {
 		return err
 	}

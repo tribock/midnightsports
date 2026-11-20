@@ -13,7 +13,7 @@ func TestEnums(t *testing.T) {
 			t.Errorf("EmergencyRelation %q muss gültig sein", r)
 		}
 	}
-	for _, s := range []UserStatus{"schueler_aadorf", "gast_extern", "mitarbeiter"} {
+	for _, s := range []UserStatus{"schueler", "gast_extern", "mitarbeiter"} {
 		if !s.Valid() {
 			t.Errorf("UserStatus %q muss gültig sein", s)
 		}
@@ -25,34 +25,35 @@ func TestEnums(t *testing.T) {
 	if EmergencyRelation("").Valid() || EmergencyRelation("Mutter").Valid() || EmergencyRelation("onkel").Valid() {
 		t.Error("ungültige Beziehung akzeptiert")
 	}
-	if UserStatus("").Valid() || UserStatus("gast").Valid() {
+	if UserStatus("").Valid() || UserStatus("gast").Valid() || UserStatus("schueler_aadorf").Valid() {
 		t.Error("ungültiger Status akzeptiert")
 	}
 }
 
-func TestCheckStatusChange(t *testing.T) {
-	admin := &User{Role: RoleAdmin}
-	pl := &User{Role: RoleProjektleiter}
+func TestStaffMembership(t *testing.T) {
+	fn := 3
 
 	tests := []struct {
-		name          string
-		editor        *User
-		current, next UserStatus
-		ok            bool
+		name       string
+		status     UserStatus
+		functionID *int
+		role       string
+		want       *int
+		ok         bool
 	}{
-		{"Erstes Profil als Schüler", pl, "", StatusSchuelerAadorf, true},
-		{"Wechsel Schüler zu Gast", pl, StatusSchuelerAadorf, StatusGastExtern, true},
-		{"Mitarbeiter selbst wählen", pl, StatusGastExtern, StatusMitarbeiter, false},
-		{"Gast als Mitarbeiter erfassen", pl, "", StatusMitarbeiter, false},
-		{"Mitarbeiter bleibt beim Speichern", pl, StatusMitarbeiter, StatusMitarbeiter, true},
-		{"Mitarbeiter selbst entfernen", pl, StatusMitarbeiter, StatusGastExtern, false},
-		{"Admin vergibt Mitarbeiter", admin, StatusGastExtern, StatusMitarbeiter, true},
-		{"Admin entfernt Mitarbeiter", admin, StatusMitarbeiter, StatusSchuelerAadorf, true},
+		{"Mitarbeiter mit Funktion", StatusMitarbeiter, &fn, RoleMitarbeiter, &fn, true},
+		{"Mitarbeiter ohne Funktion", StatusMitarbeiter, nil, "", nil, false},
+		{"Schüler ist Teilnehmer", StatusSchueler, nil, RoleTeilnehmer, nil, true},
+		{"Gast extern verliert die Funktion", StatusGastExtern, &fn, RoleTeilnehmer, nil, true},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if err := checkStatusChange(tt.editor, tt.current, tt.next); (err == nil) != tt.ok {
-				t.Errorf("err = %v, want ok = %v", err, tt.ok)
+			role, got, err := staffMembership(tt.status, tt.functionID)
+			if (err == nil) != tt.ok {
+				t.Fatalf("err = %v, want ok = %v", err, tt.ok)
+			}
+			if role != tt.role || got != tt.want {
+				t.Errorf("Rolle %q, Funktion %v, want %q, %v", role, got, tt.role, tt.want)
 			}
 		})
 	}

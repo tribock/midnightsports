@@ -1,8 +1,9 @@
 import { useState, type FormEvent } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { api, errorMessage, type User } from '../api'
-import { isAdmin, useAuth } from '../auth'
+import { api, errorMessage, type Me, type User } from '../api'
+import { afterLogin, useAuth } from '../auth'
 import ProfileFields, { type ProfileData } from '../components/ProfileFields'
+import { useUnsavedWarning } from '../preventreload'
 
 export default function ProfilePage() {
   const { user, setUser } = useAuth()
@@ -11,6 +12,9 @@ export default function ProfilePage() {
   const [error, setError] = useState('')
   const [saved, setSaved] = useState(false)
 
+
+  useUnsavedWarning(!saved)
+
   const firstTime = !user!.profileComplete
 
   async function submit(e: FormEvent) {
@@ -18,9 +22,11 @@ export default function ProfilePage() {
     setError('')
     try {
       const updated = await api.put<User>('/me', form)
-      setUser(updated)
+      setUser({ ...(user as Me), ...updated })
       setSaved(true)
-      if (firstTime) navigate('/events')
+
+      // Nach dem ersten Ausfüllen weiter zum Projekt-Link oder zur Startseite
+      if (firstTime) navigate(afterLogin(true) ?? '/')
     } catch (err) {
       setError(errorMessage(err))
     }
@@ -39,16 +45,17 @@ export default function ProfilePage() {
   return (
     <div className="narrow">
       <h1>Profil</h1>
-      {firstTime && <p className="notice">Bitte fülle dein Profil aus, bevor du dich für Events anmelden kannst.</p>}
+      {firstTime && <p className="notice">Bitte fülle dein Profil aus, bevor du dich für Projekte und Events anmelden kannst.</p>}
+      <p className="muted small">Das Profil gilt für alle Projekte, bei denen du angemeldet bist.</p>
 
       <form className="stack" onSubmit={submit}>
         <ProfileFields
           value={form}
           email="readonly"
-          canSetStaffStatus={isAdmin(user)}
           onChange={(v) => {
             setForm(v)
             setSaved(false)
+    
           }}
         />
         {error && <p className="error">{error}</p>}
@@ -61,7 +68,8 @@ export default function ProfilePage() {
       <section className="danger-zone">
         <h2>Konto löschen</h2>
         <p className="muted">
-          Alle persönlichen Daten werden gelöscht. Besuche an Events bleiben anonym für die Statistik erhalten.
+          Alle persönlichen Daten und Anmeldungen bei Projekten werden gelöscht. Besuche an Events bleiben anonym für
+          die Statistik erhalten.
         </p>
         <button className="danger" onClick={deleteAccount}>
           Konto löschen

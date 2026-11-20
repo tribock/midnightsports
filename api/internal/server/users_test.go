@@ -6,17 +6,18 @@ func TestVisibleTo(t *testing.T) {
 	person := &User{ID: "p", EmergencyName: "Anna", EmergencyPhone: "079", EmergencyRelation: RelationMutter}
 
 	tests := []struct {
-		name    string
-		viewer  *User
-		visible bool
+		name     string
+		viewerID string
+		access   bool
+		visible  bool
 	}{
-		{"mit Zugriff", &User{ID: "sc", EmergencyAccess: true}, true},
-		{"ohne Zugriff", &User{ID: "ma"}, false},
-		{"eigene Daten", &User{ID: "p"}, true},
+		{"mit Zugriff", "sc", true, true},
+		{"ohne Zugriff", "ma", false, false},
+		{"eigene Daten", "p", false, true},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := person.visibleTo(tt.viewer)
+			got := person.visibleTo(tt.viewerID, tt.access)
 			if (got.EmergencyPhone != "") != tt.visible {
 				t.Errorf("Notfallkontakt sichtbar = %v, want %v", got.EmergencyPhone != "", tt.visible)
 			}
@@ -30,7 +31,7 @@ func TestVisibleTo(t *testing.T) {
 func TestValidateProfile(t *testing.T) {
 	valid := func() User {
 		return User{FirstName: " Anna ", LastName: "Muster", BirthDate: "2010-11-07", Gender: GenderW,
-			Status: StatusSchuelerAadorf, Zip: "8355", City: "Aadorf",
+			Zip: "8355", City: "Aadorf",
 			EmergencyName: "Eva", EmergencyPhone: "079", EmergencyRelation: RelationMutter}
 	}
 
@@ -48,7 +49,6 @@ func TestValidateProfile(t *testing.T) {
 	}{
 		{"Pflichtfeld leer", func(u *User) { u.City = "  " }},
 		{"Geschlecht fehlt", func(u *User) { u.Gender = "" }},
-		{"Status ungültig", func(u *User) { u.Status = "lehrer" }},
 		{"Beziehung fehlt", func(u *User) { u.EmergencyRelation = "" }},
 		{"Geburtsdatum in der Zukunft", func(u *User) { u.BirthDate = "2999-01-01" }},
 		{"Geburtsdatum ungültig", func(u *User) { u.BirthDate = "07.11.2010" }},
@@ -73,5 +73,18 @@ func TestOptionalEmail(t *testing.T) {
 	}
 	if _, err := optionalEmail("keine-email"); err == nil {
 		t.Error("ungültige Email akzeptiert")
+	}
+}
+
+func TestChangedFields(t *testing.T) {
+	old := &User{Email: "a@b.ch", FirstName: "Anna", LastName: "Muster", Zip: "8355", EmergencyPhone: "079"}
+	next := *old
+	if got := changedFields(old, &next); len(got) != 0 {
+		t.Errorf("ohne Änderung: %v", got)
+	}
+	next.FirstName, next.EmergencyPhone = "Anne", "078"
+	got := changedFields(old, &next)
+	if len(got) != 2 || got[0] != "vorname" || got[1] != "notfallkontakt" {
+		t.Errorf("got %v, want [vorname notfallkontakt]", got)
 	}
 }

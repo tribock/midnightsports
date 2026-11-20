@@ -28,7 +28,8 @@ type Apple struct {
 // NewApple lädt das Pass-Zertifikat. Die PEM-Datei enthält das Pass Type ID Zertifikat,
 // den privaten Schlüssel und das Apple WWDR-Zertifikat. Ohne Konfiguration wird nil zurückgegeben.
 func NewApple(passTypeID, teamID, pemFile string) (*Apple, error) {
-	if passTypeID == "" && teamID == "" && pemFile == "" {
+	// Die Team ID allein schaltet Wallet nicht ein: sie gehört auch zum Login mit Apple
+	if passTypeID == "" && pemFile == "" {
 		return nil, nil
 	}
 	if passTypeID == "" || teamID == "" || pemFile == "" {

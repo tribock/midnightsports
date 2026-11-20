@@ -2,6 +2,7 @@ package server
 
 import (
 	"context"
+	"errors"
 	"net/http"
 	"time"
 
@@ -83,12 +84,12 @@ func eventTimes(tz *time.Location, date, startTime, endTime string) (time.Time, 
 	return start, end, nil
 }
 
-func (s *Server) listEvents(w http.ResponseWriter, r *http.Request, u *User) error {
-	query := eventQuery + ` WHERE e.ends_at > now() ORDER BY e.starts_at`
+func (s *Server) listEvents(w http.ResponseWriter, r *http.Request, m *Member) error {
+	query := eventQuery + ` WHERE e.project_id = $2 AND e.ends_at > now() ORDER BY e.starts_at`
 	if r.URL.Query().Get("past") == "true" {
-		query = eventQuery + ` WHERE e.ends_at <= now() ORDER BY e.starts_at DESC LIMIT 100`
+		query = eventQuery + ` WHERE e.project_id = $2 AND e.ends_at <= now() ORDER BY e.starts_at DESC LIMIT 100`
 	}
-	rows, err := s.db.Query(r.Context(), query, u.ID)
+	rows, err := s.db.Query(r.Context(), query, m.ID, m.Project.ID)
 	if err != nil {
 		return err
 	}
@@ -108,16 +109,34 @@ func (s *Server) listEvents(w http.ResponseWriter, r *http.Request, u *User) err
 	return nil
 }
 
-func (s *Server) loadEvent(ctx context.Context, id int, userID string) (*Event, error) {
-	return s.scanEvent(s.db.QueryRow(ctx, eventQuery+` WHERE e.id = $2`, userID, id))
+// loadEvent lädt einen Event des Projekts. Events anderer Projekte gelten als nicht gefunden.
+func (s *Server) loadEvent(ctx context.Context, m *Member, id int) (*Event, error) {
+	return s.scanEvent(s.db.QueryRow(ctx, eventQuery+` WHERE e.project_id = $2 AND e.id = $3`, m.ID, m.Project.ID, id))
 }
 
-func (s *Server) getEvent(w http.ResponseWriter, r *http.Request, u *User) error {
+// projectEvent liest die Event-ID aus dem Pfad und prüft, dass der Event zum Projekt gehört.
+func (s *Server) projectEvent(r *http.Request, m *Member) (int, error) {
+	id, err := pathInt(r, "id")
+	if err != nil {
+		return 0, err
+	}
+	var ok bool
+	if err := s.db.QueryRow(r.Context(),
+		`SELECT EXISTS (SELECT 1 FROM events WHERE id = $1 AND project_id = $2)`, id, m.Project.ID).Scan(&ok); err != nil {
+		return 0, err
+	}
+	if !ok {
+		return 0, errNotFound
+	}
+	return id, nil
+}
+
+func (s *Server) getEvent(w http.ResponseWriter, r *http.Request, m *Member) error {
 	id, err := pathInt(r, "id")
 	if err != nil {
 		return err
 	}
-	e, err := s.loadEvent(r.Context(), id, u.ID)
+	e, err := s.loadEvent(r.Context(), m, id)
 	if err != nil {
 		return err
 	}
@@ -125,20 +144,20 @@ func (s *Server) getEvent(w http.ResponseWriter, r *http.Request, u *User) error
 	return nil
 }
 
-func (s *Server) createEvent(w http.ResponseWriter, r *http.Request, u *User) error {
-	return s.saveEvent(w, r, u, 0)
+func (s *Server) createEvent(w http.ResponseWriter, r *http.Request, m *Member) error {
+	return s.saveEvent(w, r, m, 0)
 }
 
-func (s *Server) updateEvent(w http.ResponseWriter, r *http.Request, u *User) error {
+func (s *Server) updateEvent(w http.ResponseWriter, r *http.Request, m *Member) error {
 	id, err := pathInt(r, "id")
 	if err != nil {
 		return err
 	}
-	return s.saveEvent(w, r, u, id)
+	return s.saveEvent(w, r, m, id)
 }
 
 // saveEvent legt einen Event an (id = 0) oder aktualisiert ihn.
-func (s *Server) saveEvent(w http.ResponseWriter, r *http.Request, u *User, id int) error {
+func (s *Server) saveEvent(w http.ResponseWriter, r *http.Request, m *Member, id int) error {
 	var in eventInput
 	if err := decode(r, &in); err != nil {
 		return err
@@ -155,15 +174,22 @@ func (s *Server) saveEvent(w http.ResponseWriter, r *http.Request, u *User, id i
 	defer tx.Rollback(ctx)
 
 	if in.LocationID == 0 {
-		if err := tx.QueryRow(ctx, `SELECT id FROM locations ORDER BY is_default DESC, id LIMIT 1`).Scan(&in.LocationID); err != nil {
+		err := tx.QueryRow(ctx, `SELECT id FROM locations WHERE project_id = $1 ORDER BY is_default DESC, id LIMIT 1`,
+			m.Project.ID).Scan(&in.LocationID)
+		if errors.Is(err, pgx.ErrNoRows) {
+			return errorf(http.StatusBadRequest, "Bitte zuerst unter Administration einen Veranstaltungsort erfassen")
+		}
+		if err != nil {
 			return err
 		}
 	}
+	// Verantwortlich sein können Projektleiter und Admins dieses Projekts
 	validLeader := validUUID(in.LeaderID)
 	if validLeader {
 		if err := tx.QueryRow(ctx,
-			`SELECT EXISTS (SELECT 1 FROM users WHERE id = $1 AND role IN ('projektleiter', 'admin'))`,
-			in.LeaderID).Scan(&validLeader); err != nil {
+			`SELECT EXISTS (SELECT 1 FROM project_members
+			                WHERE project_id = $1 AND user_id = $2 AND role IN ('projektleiter', 'admin'))`,
+			m.Project.ID, in.LeaderID).Scan(&validLeader); err != nil {
 			return err
 		}
 	}
@@ -173,21 +199,24 @@ func (s *Server) saveEvent(w http.ResponseWriter, r *http.Request, u *User, id i
 
 	if id == 0 {
 		err = tx.QueryRow(ctx,
-			`INSERT INTO events (starts_at, ends_at, location_id, leader_id, created_by)
-			 VALUES ($1, $2, $3, $4::uuid, $5) RETURNING id`,
-			start, end, in.LocationID, in.LeaderID, u.ID).Scan(&id)
+			`INSERT INTO events (project_id, starts_at, ends_at, location_id, leader_id, created_by)
+			 VALUES ($1, $2, $3, $4, $5::uuid, $6) RETURNING id`,
+			m.Project.ID, start, end, in.LocationID, in.LeaderID, m.ID).Scan(&id)
 	} else {
 		err = tx.QueryRow(ctx,
-			`UPDATE events SET starts_at = $2, ends_at = $3, location_id = $4, leader_id = $5::uuid
-			 WHERE id = $1 RETURNING id`,
-			id, start, end, in.LocationID, in.LeaderID).Scan(&id)
+			`UPDATE events SET starts_at = $3, ends_at = $4, location_id = $5, leader_id = $6::uuid
+			 WHERE id = $1 AND project_id = $2 RETURNING id`,
+			id, m.Project.ID, start, end, in.LocationID, in.LeaderID).Scan(&id)
+	}
+	if isForeignKeyViolation(err) {
+		return errorf(http.StatusBadRequest, "Unbekannter Veranstaltungsort")
 	}
 	if err != nil {
 		return err
 	}
 	// Löhne sehen und ändern nur Projektleiter und Admins
-	if in.Staff != nil && isProjectLead(u) {
-		if err := saveStaff(ctx, tx, id, *in.Staff); err != nil {
+	if in.Staff != nil && isProjectLead(m) {
+		if err := saveStaff(ctx, tx, m.Project.ID, id, *in.Staff); err != nil {
 			return err
 		}
 	}
@@ -195,7 +224,7 @@ func (s *Server) saveEvent(w http.ResponseWriter, r *http.Request, u *User, id i
 		return err
 	}
 
-	e, err := s.loadEvent(ctx, id, u.ID)
+	e, err := s.loadEvent(ctx, m, id)
 	if err != nil {
 		return err
 	}
@@ -203,7 +232,7 @@ func (s *Server) saveEvent(w http.ResponseWriter, r *http.Request, u *User, id i
 	return nil
 }
 
-func (s *Server) cancelEvent(w http.ResponseWriter, r *http.Request, u *User) error {
+func (s *Server) cancelEvent(w http.ResponseWriter, r *http.Request, m *Member) error {
 	id, err := pathInt(r, "id")
 	if err != nil {
 		return err
@@ -212,10 +241,11 @@ func (s *Server) cancelEvent(w http.ResponseWriter, r *http.Request, u *User) er
 	if err := decode(r, &req); err != nil {
 		return err
 	}
-	if err := s.execOne(r.Context(), `UPDATE events SET cancelled = $2 WHERE id = $1`, id, req.Cancelled); err != nil {
+	if err := s.execOne(r.Context(), `UPDATE events SET cancelled = $3 WHERE id = $1 AND project_id = $2`,
+		id, m.Project.ID, req.Cancelled); err != nil {
 		return err
 	}
-	e, err := s.loadEvent(r.Context(), id, u.ID)
+	e, err := s.loadEvent(r.Context(), m, id)
 	if err != nil {
 		return err
 	}
@@ -223,34 +253,45 @@ func (s *Server) cancelEvent(w http.ResponseWriter, r *http.Request, u *User) er
 	return nil
 }
 
-func (s *Server) register(w http.ResponseWriter, r *http.Request, u *User) error {
-	if !u.ProfileComplete {
+// register meldet für einen Event an. Gesperrte Personen können sich nicht anmelden.
+func (s *Server) register(w http.ResponseWriter, r *http.Request, m *Member) error {
+	if !m.ProfileComplete {
 		return errIncomplete
 	}
-	return s.changeRegistration(w, r, u, `INSERT INTO registrations (event_id, user_id) VALUES ($1, $2) ON CONFLICT DO NOTHING`)
+	if !m.IsMember {
+		return errorf(http.StatusForbidden, "Bitte zuerst für das Projekt anmelden")
+	}
+	sanctions, err := s.loadSanctionsFor(r.Context(), m.Project.ID, m.ID)
+	if err != nil {
+		return err
+	}
+	if banned(sanctions) {
+		return errorf(http.StatusForbidden, "Anmeldung nicht möglich, bitte wende dich an die Projektleitung")
+	}
+	return s.changeRegistration(w, r, m, `INSERT INTO registrations (event_id, user_id) VALUES ($1, $2) ON CONFLICT DO NOTHING`)
 }
 
-func (s *Server) unregister(w http.ResponseWriter, r *http.Request, u *User) error {
-	return s.changeRegistration(w, r, u, `DELETE FROM registrations WHERE event_id = $1 AND user_id = $2`)
+func (s *Server) unregister(w http.ResponseWriter, r *http.Request, m *Member) error {
+	return s.changeRegistration(w, r, m, `DELETE FROM registrations WHERE event_id = $1 AND user_id = $2`)
 }
 
 // changeRegistration meldet an oder ab. Beides ist nur bis zum Start des Events möglich.
-func (s *Server) changeRegistration(w http.ResponseWriter, r *http.Request, u *User, sql string) error {
+func (s *Server) changeRegistration(w http.ResponseWriter, r *http.Request, m *Member, sql string) error {
 	id, err := pathInt(r, "id")
 	if err != nil {
 		return err
 	}
-	e, err := s.loadEvent(r.Context(), id, u.ID)
+	e, err := s.loadEvent(r.Context(), m, id)
 	if err != nil {
 		return err
 	}
 	if !e.RegistrationOpen {
 		return errorf(http.StatusConflict, "An- und Abmeldung ist für diesen Event nicht mehr möglich")
 	}
-	if _, err := s.db.Exec(r.Context(), sql, id, u.ID); err != nil {
+	if _, err := s.db.Exec(r.Context(), sql, id, m.ID); err != nil {
 		return err
 	}
-	e, err = s.loadEvent(r.Context(), id, u.ID)
+	e, err = s.loadEvent(r.Context(), m, id)
 	if err != nil {
 		return err
 	}
